@@ -1,0 +1,27 @@
+{
+  "recommendations": [
+    // ===== JS/TS =====
+    "dbaeumer.vscode-eslint",
+    "esbenp.prettier-vscode",
+    "ms-vscode.vscode-typescript-next",
+
+    // ===== PHP / Laravel =====
+    "bmewburn.vscode-intelephense-client",
+    "open-southeners.laravel-pint",
+    "amiralizadeh9480.laravel-extra-intellisense",
+    "onecentlin.laravel-blade",
+    "ryannaddy.laravel-artisan",
+    "swordev.phpstan",
+
+    // ===== Common =====
+    "streetsidesoftware.code-spell-checker",
+    "usernamehw.errorlens",
+    "christian-kohler.path-intellisense",
+    "eamodio.gitlens",
+    "mikestead.dotenv",
+
+    // ===== React =====
+    "formulahendry.auto-rename-tag",
+    "dsznajder.es7-react-js-snippets"
+  ]
+}

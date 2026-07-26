@@ -1,0 +1,15 @@
+[submodule "apps/matsu-front"]
+	path = apps/matsu-front
+	url = https://github.com/shu-matsukubo/Kakeibo-front.git
+[submodule "apps/matsu-bff"]
+	path = apps/matsu-bff
+	url = https://github.com/shu-matsukubo/Kakeibo-bff.git
+[submodule "apps/matsu-api"]
+	path = apps/matsu-api
+	url = https://github.com/shu-matsukubo/Kakeibo-backend.git
+[submodule "apps/matsu-auth"]
+	path = apps/matsu-auth
+	url = https://github.com/shu-matsukubo/Kakeibo-auth.git
+[submodule "docs"]
+	path = docs
+	url = https://github.com/shu-matsukubo/matsu-docs.git

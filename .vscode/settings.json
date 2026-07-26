@@ -1,0 +1,72 @@
+{
+  // ============== TypeScript/JavaScript ==============
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": "explicit"
+  },
+
+  "[typescript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+
+  "[typescriptreact]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+
+  "js/ts.preferences.importModuleSpecifier": "relative",
+  "js/ts.updateImportsOnFileMove.enabled": "always",
+
+  // ============== PHP ==============
+  "[php]": {
+    "editor.tabSize": 4,
+    "editor.defaultFormatter": "open-southeners.laravel-pint"
+  },
+  "laravel-pint.executablePath": "apps\\matsu-api\\src\\www\\pint-wrapper.bat",
+
+  // ============== Common ==============
+  "editor.formatOnSave": true,
+
+  "editor.tabSize": 2,
+  "editor.insertSpaces": true,
+  "editor.detectIndentation": true,
+
+  "editor.renderWhitespace": "boundary",
+
+  "files.trimTrailingWhitespace": true,
+  "files.insertFinalNewline": true,
+  "files.eol": "\n",
+
+  "editor.bracketPairColorization.enabled": true,
+  "editor.guides.bracketPairs": true,
+
+  "editor.lineNumbers": "on",
+  "editor.wordWrap": "off",
+
+  "editor.cursorBlinking": "smooth",
+  "editor.fontLigatures": true,
+  "editor.smoothScrolling": true,
+
+  "editor.quickSuggestions": {
+    "other": true,
+    "comments": false,
+    "strings": true
+  },
+
+  "files.exclude": {
+    "**/.git": true,
+    "**/.DS_Store": true,
+    "**/node_modules": true
+  },
+
+  "search.exclude": {
+    "**/node_modules": true
+  },
+
+  "editor.codeLens": true,
+  "editor.snippetSuggestions": "top",
+  "editor.hover.enabled": "on",
+  "editor.tabCompletion": "on",
+
+  "cSpell.words": [
+    "TIMESTAMPDIFF"
+  ]
+}
