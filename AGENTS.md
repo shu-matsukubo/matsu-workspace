@@ -7,12 +7,11 @@
 - `.gitmodules` はサブモジュールのpathとURLだけを管理します。
 - `modules.dev.conf` はローカル開発で追従するbranch、`modules.lock.conf` は環境別の固定commitを管理します。
 - 親gitlinkはclone直後の初期位置です。リリースの正本は `modules.lock.conf` の40桁SHAです。
-- 各アプリの開発はローカルの `develop` で行い、`origin/develop` へ直接pushします。リリースはGitHub上で `develop` から `main` へマージします。
-- `docs` はアプリではなく、既存のremote運用どおりローカルでも `main` を追跡します。
+- 各アプリと `docs` の開発はローカルの `develop` で行い、`origin/develop` へ直接pushします。リリースはGitHub上で `develop` から `main` へマージします。
 - ローカル開発の同期は `scripts/sync-dev.sh` が行い、Windowsでは `scripts/sync-dev.bat` からGit Bashで起動します。
 - リリースCIは `scripts/apply-lock.sh <environment>` と `scripts/verify-lock.sh <environment>` を直接実行します。
 - environment間の昇格は `scripts/promote-lock.sh` で同じcommit一式をコピーし、アプリソースを再修正しません。
-- アプリ変更は対象の子リポジトリで先にcommitします。その後、親リポジトリでlock差分を確認して別commitにします。
+- 子リポジトリの変更は対象リポジトリで先にcommitします。その後、親リポジトリでlock差分を確認して別commitにします。
 - commitやpushを自動実行してはいけません。
 
 ## プロジェクト構成

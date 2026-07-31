@@ -139,7 +139,7 @@ Windowsでは `scripts\sync-dev.bat` をダブルクリックします。終了�
 sh scripts/sync-dev.sh
 ```
 
-この処理は `modules.dev.conf` を読み、全モジュールを設定済みの開発branchへ切り替え、`origin` の最新版までfast-forwardします。7アプリはすべて `develop`、設計文書repoの `docs` は既存方針どおり `main` です。
+この処理は `modules.dev.conf` を読み、全モジュールを設定済みの開発branchへ切り替え、`origin` の最新版までfast-forwardします。7アプリと設計文書repoの `docs` は、すべて `develop` を追跡します。
 
 未commit変更、未push commit、branchの分岐、想定外の作業branchが1つでもある場合は、更新前に停止します。commitやpushは自動実行しません。
 
@@ -154,7 +154,7 @@ git merge --ff-only feature/example
 git push origin develop
 ```
 
-運用に合わせてfeature branchをPull Requestで `develop` へマージしても構いません。アプリの成果物はGitHub上で `develop` から `main` へマージし、ローカルで `main` を日常利用しません。
+運用に合わせてfeature branchをPull Requestで `develop` へマージしても構いません。アプリと `docs` の成果物はGitHub上で `develop` から `main` へマージし、ローカルで `main` を日常利用しません。
 
 詳しい手順は [DEVELOPMENT.md](DEVELOPMENT.md) を参照してください。
 

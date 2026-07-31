@@ -21,7 +21,7 @@ development -> staging -> production
 
 branchやtagは「どのcommitをlockへ採用するか」を指定する入力です。CIが実際にcheckoutする正本は、常にlockへ記録された40桁SHAです。
 
-## アプリbranchの方針
+## 子リポジトリbranchの方針
 
 | リポジトリ | ローカル開発branch | 成果物branch |
 |---|---|---|
@@ -32,11 +32,9 @@ branchやtagは「どのcommitをlockへ採用するか」を指定する入力�
 | `apps/matsu-toolbox-api` | `develop` | `main` |
 | `apps/matsu-arcade-auth` | `develop` | `main` |
 | `apps/matsu-arcade-api` | `develop` | `main` |
-| `docs` | `main` | `main` |
+| `docs` | `develop` | `main` |
 
-7アプリは `develop` へ直接pushする現在の運用を維持します。成果物にするときはGitHub上で `develop` から `main` へマージします。日常のローカル作業でアプリを `main` へ切り替える必要はありません。
-
-`docs` はアプリではなく、既存workspace方針とremote実態に合わせて `main` を追跡します。`docs` も `develop` に変更する場合は、先に `origin/develop` と運用方針を用意し、manifestと文書を同じ変更で更新します。
+7アプリと `docs` は `develop` へ直接pushします。成果物にするときはGitHub上で `develop` から `main` へマージします。日常のローカル作業で各子リポジトリを `main` へ切り替える必要はありません。
 
 ## 1. 開発開始
 
@@ -85,7 +83,7 @@ git push origin develop
 複数repoを変更した統合作業では、次の順序を守ります。
 
 1. 変更した各子repoでbuild/testを実行する。
-2. 各子repoをcommitし、アプリは `origin/develop`、docsは選択branchへpushする。
+2. 各子repoをcommitし、`origin/develop` へpushする。
 3. 全moduleでlocal-only commitと未commit変更がないことを確認する。
 4. 親でgitlink、manifest、development lockを更新する。
 5. 親差分を確認し、親を最後に別commitとしてpushする。
@@ -109,9 +107,9 @@ git push origin main
 
 子リポジトリのcommitと、親のlock更新は別のcommitです。親のcommitはソース修正ではなく、複数リポジトリの組み合わせを記録するリリース管理情報です。
 
-## 4. アプリ成果物をmainへマージ
+## 4. 子リポジトリの成果物をmainへマージ
 
-リリース対象の各アプリで、GitHub上の `develop` から `main` へPull Requestを作成します。
+リリース対象の各アプリと `docs` で、GitHub上の `develop` から `main` へPull Requestを作成します。
 
 lockにはcommit SHAを保存するため、merge commit、squash merge、rebase mergeのいずれでも技術的には指定できます。ただし「developmentで試験したcommitをそのまま昇格した」ことを分かりやすくするなら、履歴が残るmerge commitまたはfast-forwardを推奨します。
 
