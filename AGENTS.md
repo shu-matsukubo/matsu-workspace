@@ -3,11 +3,12 @@
 ## スーパープロジェクトの方針
 
 - ワークスペースルートはGitスーパープロジェクト `matsu-workspace` です。
-- `apps/matsu-front`、`apps/matsu-bff`、`apps/matsu-api`、`apps/matsu-auth`、`docs` は、それぞれ独立したGitリポジトリをサブモジュールとして配置しています。
+- `apps/matsu-front`、`apps/matsu-bff`、`apps/matsu-api`、`apps/matsu-auth`、`apps/matsu-toolbox-api`、`apps/matsu-arcade-auth`、`apps/matsu-arcade-api`、`docs` は、それぞれ独立したGitリポジトリをサブモジュールとして配置しています。
 - `.gitmodules` はサブモジュールのpathとURLだけを管理します。
 - `modules.dev.conf` はローカル開発で追従するbranch、`modules.lock.conf` は環境別の固定commitを管理します。
 - 親gitlinkはclone直後の初期位置です。リリースの正本は `modules.lock.conf` の40桁SHAです。
 - 各アプリの開発はローカルの `develop` で行い、`origin/develop` へ直接pushします。リリースはGitHub上で `develop` から `main` へマージします。
+- `docs` はアプリではなく、既存のremote運用どおりローカルでも `main` を追跡します。
 - ローカル開発の同期は `scripts/sync-dev.sh` が行い、Windowsでは `scripts/sync-dev.bat` からGit Bashで起動します。
 - リリースCIは `scripts/apply-lock.sh <environment>` と `scripts/verify-lock.sh <environment>` を直接実行します。
 - environment間の昇格は `scripts/promote-lock.sh` で同じcommit一式をコピーし、アプリソースを再修正しません。
@@ -20,6 +21,9 @@
 - `apps/matsu-bff`: Backend for Frontendおよびブラウザセッション境界。
 - `apps/matsu-api`: 家計簿ドメインAPI。
 - `apps/matsu-auth`: 認証サーバーおよびブラウザ向けログインUI。
+- `apps/matsu-toolbox-api`: note、bookmark、text inspectionを提供する独立resource server。
+- `apps/matsu-arcade-auth`: Arcade専用の認証サーバー。既存AuthとDB、issuer、鍵、tokenを共有しません。
+- `apps/matsu-arcade-api`: player profile、game catalog、score、leaderboardを管理するArcade resource server。
 - `docs`: プロジェクト横断のアーキテクチャ・技術文書。
 - `scripts`: ワークスペースのセットアップ、状態確認、更新、開発環境起動スクリプト。
 - `.agents/skills`: リポジトリが提供するCodexスキル。実在し、説明可能なスキルだけを追加します。
@@ -42,6 +46,7 @@
 - CIでlockを適用・検証: `sh scripts/apply-lock.sh <environment>`、`sh scripts/verify-lock.sh <environment>`
 - 開発環境全体を起動: `scripts\run-matsu.bat`
 - FrontまたはBFFだけを起動: `scripts\run-front-dev.bat` または `scripts\run-bff-dev.bat`
+- Toolbox、Arcade Auth、Arcade APIだけを起動: `scripts\run-toolbox-dev.bat`、`scripts\run-arcade-auth-dev.bat`、`scripts\run-arcade-api-dev.bat`
 - 通常の親 `git pull` 後は `sh scripts/setup.sh` を実行します。開発branchの最新版追従は明示的に `sync-dev` を実行します。
 - 詳細な開発フローは `DEVELOPMENT.md` を参照します。
 
@@ -67,6 +72,7 @@
 - typecheck: `npm run typecheck`
 - 統合チェック: `npm run check` でlint、typecheck、Prettierチェックを実行します。
 - BFFのベースURLは既定で `http://localhost:18082` です。
+- FrontはBFFだけを呼びます。resource serverやAuthをブラウザから直接呼ぶ実装を追加しません。
 - `package.json` の `"name"` は `"matsu-front"` です。
 - OpenAPI生成は `../matsu-bff/openapi/openapi.json` を読みます。FrontとBFFはどちらも `apps` 配下なので、構成変更がない限りこの相対パスを維持します。
 
@@ -85,7 +91,11 @@
 - Redis公開先: `localhost:16379`
 - 既定のFrontend origin: `http://localhost:5173`
 - DockerからのLaravel API既定接続先: `http://host.docker.internal:18080/api`
+- DockerからのToolbox API既定接続先: `http://host.docker.internal:18083/api`
+- DockerからのArcade API既定接続先: `http://host.docker.internal:18085/api`
 - DockerからのAuth既定接続先: `http://host.docker.internal:18081`
+- DockerからのArcade Auth既定接続先: `http://host.docker.internal:18084`
+- BFFは家計簿、Toolbox、Arcadeのrouteとtokenを明示的に分け、3 APIを呼び分けます。
 - OpenAPI JSONは `/openapi.json`、Swagger UIは `/docs` です。
 - `apps/matsu-bff/openapi/openapi.json` は登録済みBFF routeから生成します。
 - Frontend API型の生成先は `apps/matsu-front/src/api/generated/schema.d.ts` です。
@@ -154,6 +164,39 @@
   - `GET /.well-known/oauth-authorization-server`
 - `apps/matsu-auth/keys/private.pem` と `apps/matsu-auth/keys/jwks.json` は開発専用の鍵です。本番secretとして扱いません。
 
+## Toolbox API
+
+- Dockerコマンドは `apps/matsu-toolbox-api` で実行します。
+- 起動: `docker compose up -d --build`
+- API: `http://localhost:18083`
+- PostgreSQL公開先: `localhost:15433`
+- database/user/password: `matsu-toolbox` / `matsu-toolbox` / `matsu-toolbox-pass`
+- 主な品質gate: `npm.cmd run check`、`npm.cmd test`、`npm.cmd run build`
+- DB integration test: `docker compose --profile test run --rm test`
+- `matsu-auth` が発行する `aud=matsu-toolbox-api` tokenだけを受け入れます。
+
+## Arcade Auth
+
+- Dockerコマンドは `apps/matsu-arcade-auth` で実行します。
+- 起動: `docker compose up -d --build auth`
+- build: `docker compose build auth`
+- test: `docker compose --profile test run --rm test`
+- API: `http://localhost:18084`
+- PostgreSQL公開先: `localhost:15434`
+- database/user/password: `matsu-arcade-auth` / `matsu-arcade-auth` / `matsu-arcade-auth-pass`
+- `keys/private.pem` と `keys/jwks.json` はArcade専用の開発鍵です。本番secretとして扱いません。
+
+## Arcade API
+
+- Dockerコマンドは `apps/matsu-arcade-api` で実行します。
+- 開発起動: `docker compose up --build`
+- API: `http://localhost:18085`
+- PostgreSQL公開先: `localhost:15435`
+- database/user/password: `matsu-arcade` / `matsu-arcade` / `matsu-arcade-pass`
+- 主な品質gate: `npm.cmd run check`、`npm.cmd test`、`npm.cmd run build`
+- DB integration test: `docker compose --profile test run --rm test`
+- `matsu-arcade-auth` が発行する `iss=http://localhost:18084`、`aud=matsu-arcade-api` tokenだけを受け入れます。
+
 ## 作業上の注意
 
 - 関係のないファイルを安易に書き換えません。
@@ -161,6 +204,7 @@
 - 旧workspace `C:\work\00_Docker\matsu` は変更しません。
 - オーナーの明示的な依頼なしに既存の未commit変更を戻しません。
 - lockを変更する前に、親の通常ファイルと全サブモジュール内に未commit変更がないことを確認します。
+- 未使用のstaging/productionはlockなしで構いません。利用開始時に任意のpush済み40桁SHAを固定し、架空SHAやplaceholderを追加しません。
 - `apply-lock.sh` 後の子リポジトリHEADと親gitlinkの差分は、リリース用の使い捨てcheckoutでは正常です。
 
 ## 主な実装位置
@@ -184,6 +228,8 @@
   - セッションmiddleware: `apps/matsu-bff/src/middleware/session.ts`
   - 認証route: `apps/matsu-bff/src/routes/auth.ts`
   - API proxy route: `apps/matsu-bff/src/routes/api.ts`
+  - Toolbox route: `apps/matsu-bff/src/routes/toolbox.ts`
+  - Arcade route: `apps/matsu-bff/src/routes/arcade.ts`
   - セッションstore: `apps/matsu-bff/src/services/sessionStore.ts`
   - Redis client: `apps/matsu-bff/src/services/redisClient.ts`
 - API支出route:
@@ -200,6 +246,22 @@
   - Docker Compose: `apps/matsu-auth/docker-compose.yml`
   - DB schema: `apps/matsu-auth/db/init/001_schema.sql`
   - ローカル開発鍵: `apps/matsu-auth/keys/`
+- Toolbox API:
+  - entry: `apps/matsu-toolbox-api/src/index.ts`
+  - app/route登録: `apps/matsu-toolbox-api/src/app.ts`
+  - JWT認証: `apps/matsu-toolbox-api/src/auth/`
+  - route: `apps/matsu-toolbox-api/src/routes/`
+  - DB schema/repository: `apps/matsu-toolbox-api/src/db/`、`apps/matsu-toolbox-api/src/repositories/`
+- Arcade Auth:
+  - entry: `apps/matsu-arcade-auth/app/Main.hs`
+  - API/app: `apps/matsu-arcade-auth/src/ArcadeAuth/API.hs`、`apps/matsu-arcade-auth/src/ArcadeAuth/App.hs`
+  - token/JWKS: `apps/matsu-arcade-auth/src/ArcadeAuth/Token.hs`、`apps/matsu-arcade-auth/src/ArcadeAuth/Jwks.hs`
+  - DB migration: `apps/matsu-arcade-auth/db/migrations/001_initial.sql`
+- Arcade API:
+  - entry: `apps/matsu-arcade-api/src/index.ts`
+  - app/route: `apps/matsu-arcade-api/src/app.ts`、`apps/matsu-arcade-api/src/http/routes.ts`
+  - JWT認証: `apps/matsu-arcade-api/src/auth.ts`
+  - DB migration/schema/seed: `apps/matsu-arcade-api/src/db/`、`apps/matsu-arcade-api/migrations/`
 
 ## 検証時の注意
 
@@ -207,6 +269,8 @@
 - Frontend buildは `apps/matsu-front` で `npm.cmd run build` を実行します。
 - FrontendのDocker開発起動は `apps/matsu-front` で `docker compose up` を実行します。Viteは `http://localhost:5173` でhot reloadします。
 - BFF buildは `apps/matsu-bff` で `npm.cmd run build` を実行します。
+- Toolbox APIとArcade APIのNode.js品質gateもPowerShellでは `npm.cmd` を使います。DB integration testは各repoのtest profileで実行し、開発DBを共有しません。
+- Arcade Authの検証済み経路はDocker buildとtest profileです。host GHCのversion差を理由に子sourceを変更しません。
 - API testは通常、`apps/matsu-api` のDocker `web` コンテナ内 `/var/www` で `composer test` または `php artisan test` を実行します。
 - APIのconfig cacheにより `.env` の認証変更が隠れる場合があります。`AUTH_SERVER_*` 変更後は `php artisan config:clear` を実行します。
 - JWT認証が `{"message":"Unauthenticated."}` を返す場合、`apps/matsu-api/src/www/storage/logs/laravel.log` を確認します。認証middlewareは理由とともに `JWT authentication failed` を記録します。

@@ -29,9 +29,14 @@ branchやtagは「どのcommitをlockへ採用するか」を指定する入力�
 | `apps/matsu-bff` | `develop` | `main` |
 | `apps/matsu-api` | `develop` | `main` |
 | `apps/matsu-auth` | `develop` | `main` |
+| `apps/matsu-toolbox-api` | `develop` | `main` |
+| `apps/matsu-arcade-auth` | `develop` | `main` |
+| `apps/matsu-arcade-api` | `develop` | `main` |
 | `docs` | `main` | `main` |
 
-各アプリは `develop` へ直接pushする現在の運用を維持します。成果物にするときはGitHub上で `develop` から `main` へマージします。日常のローカル作業で `main` へ切り替える必要はありません。
+7アプリは `develop` へ直接pushする現在の運用を維持します。成果物にするときはGitHub上で `develop` から `main` へマージします。日常のローカル作業でアプリを `main` へ切り替える必要はありません。
+
+`docs` はアプリではなく、既存workspace方針とremote実態に合わせて `main` を追跡します。`docs` も `develop` に変更する場合は、先に `origin/develop` と運用方針を用意し、manifestと文書を同じ変更で更新します。
 
 ## 1. 開発開始
 
@@ -77,6 +82,16 @@ git push origin develop
 
 複数アプリを組み合わせて開発環境で試験する前に、全子リポジトリがcleanでpush済みであることを確認します。
 
+複数repoを変更した統合作業では、次の順序を守ります。
+
+1. 変更した各子repoでbuild/testを実行する。
+2. 各子repoをcommitし、アプリは `origin/develop`、docsは選択branchへpushする。
+3. 全moduleでlocal-only commitと未commit変更がないことを確認する。
+4. 親でgitlink、manifest、development lockを更新する。
+5. 親差分を確認し、親を最後に別commitとしてpushする。
+
+子repoのsource変更と親の組み合わせ記録を同じcommitに混ぜません。
+
 ```sh
 cd ../..
 sh scripts/update-lock.sh development --from-worktree
@@ -104,6 +119,8 @@ lockにはcommit SHAを保存するため、merge commit、squash merge、rebase
 
 ## 5. stagingへ昇格
 
+まだ利用していない環境はlockなしで構いません。利用開始時に、originへpush済みで到達可能な任意のcommitを40桁SHAとして固定します。架空SHAや将来値のplaceholderは記録しません。
+
 developmentで試験した同じSHA一式をそのまま使う場合:
 
 ```sh
@@ -122,6 +139,14 @@ sh scripts/update-lock.sh staging apps/matsu-bff v1.2.0
 ```
 
 ここで行うのは、stagingへ出すcommitの選択です。アプリソースへstaging用の修正を入れる工程ではありません。
+
+同じ仕組みで、必要ならproductionへ直接任意のpush済み40桁commitを指定できます。
+
+```sh
+sh scripts/update-lock.sh production <module-path> <pushed-40-character-commit>
+```
+
+productionをbranch名へ固定する設計ではありません。通常の昇格では次節のとおり、試験済みのSHA一式をコピーします。
 
 staging CIは次を実行します。
 
@@ -180,6 +205,20 @@ Gitサブモジュールには親gitlinkが必須です。親gitlinkはclone直�
 リリース時の正本は `modules.lock.conf` です。`apply-lock.sh` の後は、lockと親gitlinkが異なる場合に親の作業ツリーへgitlink差分が表示されますが、CIの使い捨てcheckoutでは正常です。
 
 ローカルで `apply-lock.sh` を試した後、開発branchへ戻す場合は、子リポジトリ内に変更がないことを確認して `sync-dev.sh` を実行します。
+
+## ローカル統合時の通信境界
+
+Frontの接続先はBFFの `http://localhost:18082` だけです。Frontからresource serverやAuthへ直接requestを追加しません。
+
+BFFはbrowser session内にresource別tokenを保持し、routeごとにupstreamを明示的に分けます。
+
+| BFF route | upstream | Auth |
+|---|---|---|
+| 既存の家計簿 `/api/*` | `matsu-api` (`18080`) | `matsu-auth` (`18081`) |
+| `/api/toolbox/*` | `matsu-toolbox-api` (`18083`) | `matsu-auth` (`18081`) |
+| `/api/arcade/*` | `matsu-arcade-api` (`18085`) | `matsu-arcade-auth` (`18084`) |
+
+各repoのComposeは独立しており、Auth/API間を親Composeの `depends_on` で結びません。`scripts\run-matsu.bat` はそれぞれのComposeを起動するだけです。
 
 ## 安全策
 

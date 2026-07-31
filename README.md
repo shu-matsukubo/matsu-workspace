@@ -32,10 +32,13 @@ matsu-workspace/
 |   `-- skills/
 |-- .vscode/
 |-- apps/
-|   |-- matsu-front/       # submodule
-|   |-- matsu-bff/         # submodule
-|   |-- matsu-api/         # submodule
-|   `-- matsu-auth/        # submodule
+|   |-- matsu-front/         # submodule
+|   |-- matsu-bff/           # submodule
+|   |-- matsu-api/           # submodule
+|   |-- matsu-auth/          # submodule
+|   |-- matsu-toolbox-api/   # submodule
+|   |-- matsu-arcade-auth/   # submodule
+|   `-- matsu-arcade-api/    # submodule
 |-- docs/                  # submodule
 `-- scripts/
     |-- setup.sh
@@ -49,10 +52,57 @@ matsu-workspace/
     |-- run-matsu.bat
     |-- run-front-dev.bat
     |-- run-bff-dev.bat
+    |-- run-toolbox-dev.bat
+    |-- run-arcade-auth-dev.bat
+    |-- run-arcade-api-dev.bat
     `-- modules/
         |-- lib.sh
         `-- ensure-docker.bat
 ```
+
+## サービス境界
+
+ブラウザの通信先は `matsu-bff` だけです。Frontは各resource serverやAuthを直接呼びません。BFFはbrowser sessionとresource別tokenを管理し、明示的なrouteで次の3 APIを呼び分けます。
+
+- 家計簿route: `matsu-api`
+- `/api/toolbox/*`: `matsu-toolbox-api`
+- `/api/arcade/*`: `matsu-arcade-api`
+
+`matsu-auth` は家計簿とToolboxのidentity providerです。`matsu-arcade-auth` はArcade専用で、DB、issuer、署名鍵、refresh tokenを `matsu-auth` と共有しません。各repoは独立したComposeとdatabaseを維持し、親に統合Composeは置きません。
+
+## ローカルURLとport
+
+| モジュール | 責務 | HTTP | DB / cache公開port |
+|---|---|---|---|
+| `matsu-front` | ブラウザUI | `http://localhost:5173` | - |
+| `matsu-bff` | browser sessionと3 APIへのgateway | `http://localhost:18082` | Redis `16379` |
+| `matsu-api` | 家計簿domain API | `http://localhost:18080/api` | MySQL `13306` |
+| `matsu-auth` | 家計簿・Toolbox向けAuth | `http://localhost:18081` | PostgreSQL `15432` |
+| `matsu-toolbox-api` | note、bookmark、text tool | `http://localhost:18083` | PostgreSQL `15433` |
+| `matsu-arcade-auth` | Arcade専用Auth | `http://localhost:18084` | PostgreSQL `15434` |
+| `matsu-arcade-api` | profile、game、score、leaderboard | `http://localhost:18085` | PostgreSQL `15435` |
+
+health確認先は次のとおりです。
+
+- Front: `http://localhost:5173/`
+- matsu-api: `http://localhost:18080/up`
+- BFF、matsu-auth、Toolbox API、Arcade Auth、Arcade API: 各HTTP base URLの `/health`
+
+## モジュール別の主なコマンド
+
+コマンドは各module directoryで実行します。PowerShellでは `npm` の代わりに `npm.cmd` を使います。
+
+| モジュール | start | build / quality / test |
+|---|---|---|
+| `matsu-front` | `docker compose up` | `npm.cmd run check`、`npm.cmd run build` |
+| `matsu-bff` | `docker compose up` | `npm.cmd run check`、`npm.cmd test`、`npm.cmd run build` |
+| `matsu-api` | `docker compose up -d` | `web` containerの `/var/www` で `composer pint:test`、`composer analyse`、`composer test` |
+| `matsu-auth` | `docker compose up -d --build` | `docker compose build` |
+| `matsu-toolbox-api` | `docker compose up -d --build` | `npm.cmd run check`、`npm.cmd test`、`npm.cmd run build`、DB testは `docker compose --profile test run --rm test` |
+| `matsu-arcade-auth` | `docker compose up -d --build auth` | `docker compose build auth`、`docker compose --profile test run --rm test` |
+| `matsu-arcade-api` | `docker compose up --build` | `npm.cmd run check`、`npm.cmd test`、`npm.cmd run build`、DB testは `docker compose --profile test run --rm test` |
+
+DBを使うNode/Haskell統合testは各repoのtest profileで専用PostgreSQLを使います。詳細は各moduleのREADMEを参照してください。
 
 ## 必要なもの
 
@@ -89,7 +139,7 @@ Windowsでは `scripts\sync-dev.bat` をダブルクリックします。終了�
 sh scripts/sync-dev.sh
 ```
 
-この処理は `modules.dev.conf` を読み、全モジュールを設定済みの開発branchへ切り替え、`origin` の最新版までfast-forwardします。現在は4アプリが `develop`、`docs` が `main` です。
+この処理は `modules.dev.conf` を読み、全モジュールを設定済みの開発branchへ切り替え、`origin` の最新版までfast-forwardします。7アプリはすべて `develop`、設計文書repoの `docs` は既存方針どおり `main` です。
 
 未commit変更、未push commit、branchの分岐、想定外の作業branchが1つでもある場合は、更新前に停止します。commitやpushは自動実行しません。
 
@@ -121,9 +171,12 @@ sh scripts/update-lock.sh development --from-worktree
 ```sh
 sh scripts/update-lock.sh staging apps/matsu-front v1.2.0
 sh scripts/update-lock.sh staging apps/matsu-bff main
+sh scripts/update-lock.sh production <module-path> <pushed-40-character-commit>
 ```
 
 `update-lock.sh` は、全リポジトリがcleanであり、指定commitがoriginへpush済みのbranchまたはtagから到達できることを確認してから `modules.lock.conf` を更新します。worktreeのcheckout、commit、pushは行いません。
+
+未使用の `staging` / `production` はlockなしで構いません。利用開始時に、その環境へ出す任意のpush済み40桁commitを固定します。環境を特定branchへ固定したり、架空SHAやplaceholderを先に追加したりしません。
 
 最初のstaging lockは、developmentで確認した組み合わせを昇格して作れます。
 
@@ -189,7 +242,15 @@ scripts\run-front-dev.bat
 scripts\run-bff-dev.bat
 ```
 
-これらはDocker DesktopとDocker Engineの起動を待ってから、従来と同じ構成でサービスを起動します。
+新サービスを個別に起動する場合:
+
+```bat
+scripts\run-toolbox-dev.bat
+scripts\run-arcade-auth-dev.bat
+scripts\run-arcade-api-dev.bat
+```
+
+これらはDocker DesktopとDocker Engineの起動を待ってから、各repo固有のComposeでサービスを起動します。`run-matsu.bat` はAPI/Authをdetachedで起動し、hot reloadのArcade API、BFF、Frontはログを確認できる別windowで起動します。同じserviceを親側の別Composeから重複起動しません。
 
 ## Codex向けファイル
 

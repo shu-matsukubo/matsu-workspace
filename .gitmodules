@@ -10,6 +10,15 @@
 [submodule "apps/matsu-auth"]
 	path = apps/matsu-auth
 	url = https://github.com/shu-matsukubo/Kakeibo-auth.git
+[submodule "apps/matsu-toolbox-api"]
+	path = apps/matsu-toolbox-api
+	url = https://github.com/shu-matsukubo/matsu-toolbox-api.git
+[submodule "apps/matsu-arcade-auth"]
+	path = apps/matsu-arcade-auth
+	url = https://github.com/shu-matsukubo/matsu-arcade-auth.git
+[submodule "apps/matsu-arcade-api"]
+	path = apps/matsu-arcade-api
+	url = https://github.com/shu-matsukubo/matsu-arcade-api.git
 [submodule "docs"]
 	path = docs
 	url = https://github.com/shu-matsukubo/matsu-docs.git
