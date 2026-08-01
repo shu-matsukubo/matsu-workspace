@@ -1,0 +1,4 @@
+interface:
+  display_name: "承認済みタスク管理"
+  short_description: "承認済みタスクの割当・並列実装・親レビューを管理する"
+  default_prompt: "Use $coordinate-approved-tasks to coordinate the approved implementation tasks."

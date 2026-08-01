@@ -1,0 +1,4 @@
+interface:
+  display_name: "変更検証"
+  short_description: "変更範囲と規模に合う品質ゲートを選び安全に検証する"
+  default_prompt: "Use $verify-changes to select and run proportional checks for these changes."

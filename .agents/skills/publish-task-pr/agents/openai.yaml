@@ -1,0 +1,4 @@
+interface:
+  display_name: "タスクPR公開"
+  short_description: "レビュー済み変更を安全にdraft PRとして公開する"
+  default_prompt: "Use $publish-task-pr to publish the approved task as a draft pull request."
