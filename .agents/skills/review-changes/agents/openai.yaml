@@ -1,0 +1,4 @@
+interface:
+  display_name: "変更レビュー"
+  short_description: "承認要件と実装を照合し重要度順に問題をレビューする"
+  default_prompt: "Use $review-changes to review these changes against the approved requirements."

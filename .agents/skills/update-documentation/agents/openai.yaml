@@ -1,0 +1,4 @@
+interface:
+  display_name: "ドキュメント更新"
+  short_description: "変更影響を判断し適切な文書だけを日本語で簡潔に更新する"
+  default_prompt: "Use $update-documentation to decide and apply the required documentation updates."

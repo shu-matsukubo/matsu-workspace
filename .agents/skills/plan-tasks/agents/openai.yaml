@@ -1,0 +1,4 @@
+interface:
+  display_name: "タスク計画"
+  short_description: "実装着手前に単一責務のタスクと承認事項を明確に整理する"
+  default_prompt: "Use $plan-tasks to create a reviewable task plan before making changes."
