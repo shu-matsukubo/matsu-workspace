@@ -216,7 +216,13 @@ BFFはbrowser session内にresource別tokenを保持し、routeごとにupstream
 | `/api/toolbox/*` | `matsu-toolbox-api` (`18083`) | `matsu-auth` (`18081`) |
 | `/api/arcade/*` | `matsu-arcade-api` (`18085`) | `matsu-arcade-auth` (`18084`) |
 
-各repoのComposeは独立しており、Auth/API間を親Composeの `depends_on` で結びません。`scripts\run-matsu.bat` はそれぞれのComposeを起動するだけです。
+各repoのComposeは独立しており、Auth/API間を親Composeの `depends_on` で結びません。親に統合Composeは作らず、`scripts\run-matsu.bat` はそれぞれのComposeを起動するだけです。
+
+local runtimeのapplication serviceは `front`、`bff`、`api`、`auth`、`toolbox-api`、`arcade-auth`、`arcade-api` です。依存serviceは順に `bff-redis`、`api-db`、`auth-db`、`toolbox-db`、`arcade-auth-db`、`arcade-db` で、Frontに依存serviceはありません。serviceとcontainerは各repo内でも他repo間でも一意に対応し、既存のphysical named volumeを継続mountします。正確なcontainer名とvolume名は `README.md` の「ローカルCompose構成」を正本とします。
+
+これらのComposeはlocal runtime専用です。test / staging / production用のservice、profile、DB、networkはありません。`modules.lock.conf` のenvironmentはリリース対象commitを選ぶための区分です。healthcheckの `test:` とArcade domainの `player_profiles` はCompose環境を表しません。
+
+`scripts\run-matsu.bat` は全application serviceをdetachedで起動します。別windowは開かず、起動処理が終わると呼び出し元のcommand lineへ入力が戻ります。`front`、`bff`、`toolbox-api`、`arcade-api` はdetachedでもsourceを監視し、Windows上の編集をDocker Desktop経由でhot reloadします。対象serviceのログをforegroundで継続表示したい場合は個別launcherを使います。各launcherはapplication serviceを明示し、同じserviceを二重起動しません。
 
 ## 安全策
 

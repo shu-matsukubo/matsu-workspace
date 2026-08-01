@@ -46,8 +46,23 @@
 - 開発環境全体を起動: `scripts\run-matsu.bat`
 - FrontまたはBFFだけを起動: `scripts\run-front-dev.bat` または `scripts\run-bff-dev.bat`
 - Toolbox、Arcade Auth、Arcade APIだけを起動: `scripts\run-toolbox-dev.bat`、`scripts\run-arcade-auth-dev.bat`、`scripts\run-arcade-api-dev.bat`
+- `run-matsu.bat` は全application serviceをdetachedで起動し、別windowを開かず呼び出し元のcommand lineへ入力を戻します。`front`、`bff`、`toolbox-api`、`arcade-api` のhot reloadは維持します。個別launcherは対象serviceのforegroundログを表示します。各application serviceは一度だけ指定し、依存するDB / Redisは各repoのComposeに起動させます。
 - 通常の親 `git pull` 後は `sh scripts/setup.sh` を実行します。開発branchの最新版追従は明示的に `sync-dev` を実行します。
 - 詳細な開発フローは `DEVELOPMENT.md` を参照します。
+
+## ローカルCompose命名
+
+- 親に統合Composeは作らず、7アプリのComposeを独立して使います。
+- service / container / physical named volumeは次の対応です。
+  - Front: `front` / `matsu-front` / named volumeなし
+  - BFF: `bff`、`bff-redis` / `matsu-bff`、`matsu-bff-redis` / `matsu-bff-redis-data`
+  - API: `api`、`api-db` / `matsu-api`、`matsu-api-db` / `matsu-api-db-data`、`matsu-api-framework-data`、`matsu-api-vendor-data`
+  - Auth: `auth`、`auth-db` / `matsu-auth`、`matsu-auth-db` / `matsu-auth-db-data`
+  - Toolbox: `toolbox-api`、`toolbox-db` / `matsu-toolbox-api`、`matsu-toolbox-db` / `matsu-toolbox-db-data`
+  - Arcade Auth: `arcade-auth`、`arcade-auth-db` / `matsu-arcade-auth`、`matsu-arcade-auth-db` / `matsu-arcade-auth-db-data`
+  - Arcade API: `arcade-api`、`arcade-db` / `matsu-arcade-api`、`matsu-arcade-api-db` / `matsu-arcade-api-db-data`
+- すべてlocal runtime専用です。test / staging / production用のCompose service、profile、DB、networkはありません。`modules.lock.conf` の環境名、healthcheckの `test:`、Arcadeの `player_profiles` をCompose環境と解釈しません。
+- named volumeは既存physical名を継続mountします。通常の起動・停止でvolumeを削除しません。
 
 ## 設計文書
 
@@ -78,7 +93,7 @@
 ## BFF
 
 - Dockerコマンドは `apps/matsu-bff` で実行します。
-- Docker開発起動: `docker compose up`
+- Docker開発起動: `docker compose up bff`
 - ローカルスクリプト:
   - `npm run dev`: `tsx watch src/index.ts`
   - `npm run build`: `tsc`
@@ -103,15 +118,15 @@
 
 - Dockerコマンドは `apps/matsu-api` で実行します。
 - Laravelアプリは `apps/matsu-api/src/www` にあります。
-- 起動: `docker compose up -d`
+- 起動: `docker compose up -d api`
 - 初回セットアップ: `sh scripts/setup.sh`
 - pull後の更新: `sh scripts/update.sh`
 - Git hookのインストール: `sh scripts/setup-hooks.sh`
 - API: `http://localhost:18080/api`
 - MySQL公開先: `localhost:13306`
 - コンテナ:
-  - `matsu-web`: PHP 8.4 + Apache
-  - `matsu-db`: MySQL 8.0
+  - `matsu-api`: PHP 8.4 + Apache (`api` service)
+  - `matsu-api-db`: MySQL 8.0 (`api-db` service)
 - DB既定値:
   - database: `matsu`
   - user: `test_user`
@@ -133,8 +148,8 @@
   - `composer test`: configをclearしてPHPUnitを実行
   - `composer test:coverage`: configをclearしてPHPUnit coverageを実行
 - Git hookは `apps/matsu-api/.githooks` にあり、`scripts/setup-hooks.sh` で子リポジトリの `.git/hooks` へインストールします。
-- `pre-commit` は `web` コンテナ内のPintでステージ済みPHPをformatし、変更ファイルを再ステージします。
-- `pre-push` はpush対象のPHP差分に対して、`web` コンテナ内でPintとPHPStanを実行します。Pintがファイルを変更した場合、確認とcommitができるようpushを停止します。
+- `pre-commit` は `api` serviceのコンテナ内でPintを使ってステージ済みPHPをformatし、変更ファイルを再ステージします。
+- `pre-push` はpush対象のPHP差分に対して、`api` serviceのコンテナ内でPintとPHPStanを実行します。Pintがファイルを変更した場合、確認とcommitができるようpushを停止します。
 - hookの実行にはAPI Dockerコンテナの起動が必要です。
 - CIは `apps/matsu-api/.github/workflows/ci.yml` にあります。
 - `main` 向けPull Requestで、MySQL 8.0、PHP 8.4、`composer install`、`.env.testing`、migration、seeder、Pintチェック、PHPStan、PHPUnitを実行します。
@@ -143,8 +158,8 @@
 ## 認証サーバー
 
 - Dockerコマンドは `apps/matsu-auth` で実行します。
-- 起動: `docker compose up -d --build`
-- build: `docker compose build`
+- 起動: `docker compose up -d --build auth`
+- build: `docker compose build auth`
 - API: `http://localhost:18081`
 - PostgreSQL公開先: `localhost:15432`
 - PostgreSQLのdatabase/user/password:
@@ -166,20 +181,20 @@
 ## Toolbox API
 
 - Dockerコマンドは `apps/matsu-toolbox-api` で実行します。
-- 起動: `docker compose up -d --build`
+- 開発起動: `docker compose up --build toolbox-api`
 - API: `http://localhost:18083`
 - PostgreSQL公開先: `localhost:15433`
 - database/user/password: `matsu-toolbox` / `matsu-toolbox` / `matsu-toolbox-pass`
 - 主な品質gate: `npm.cmd run check`、`npm.cmd test`、`npm.cmd run build`
-- DB integration test: `docker compose --profile test run --rm test`
+- sourceをbind mountし、container専用 `node_modules` でmigration後に `npm run dev` を実行します。DB integration testには別途管理するtest PostgreSQLを `TEST_DATABASE_URL` で指定します。
 - `matsu-auth` が発行する `aud=matsu-toolbox-api` tokenだけを受け入れます。
 
 ## Arcade Auth
 
 - Dockerコマンドは `apps/matsu-arcade-auth` で実行します。
-- 起動: `docker compose up -d --build auth`
-- build: `docker compose build auth`
-- test: `docker compose --profile test run --rm test`
+- 起動: `docker compose up -d --build arcade-auth`
+- build: `docker compose build arcade-auth`
+- test: 必要な環境変数と別途管理するtest PostgreSQLを用意して `cabal test all --test-show-details=direct`
 - API: `http://localhost:18084`
 - PostgreSQL公開先: `localhost:15434`
 - database/user/password: `matsu-arcade-auth` / `matsu-arcade-auth` / `matsu-arcade-auth-pass`
@@ -188,12 +203,12 @@
 ## Arcade API
 
 - Dockerコマンドは `apps/matsu-arcade-api` で実行します。
-- 開発起動: `docker compose up --build`
+- 開発起動: `docker compose up --build arcade-api`
 - API: `http://localhost:18085`
 - PostgreSQL公開先: `localhost:15435`
 - database/user/password: `matsu-arcade` / `matsu-arcade` / `matsu-arcade-pass`
 - 主な品質gate: `npm.cmd run check`、`npm.cmd test`、`npm.cmd run build`
-- DB integration test: `docker compose --profile test run --rm test`
+- sourceをbind mountし、container専用 `node_modules` でmigration・seed後に `npm run dev` を実行します。DB integration testには別途管理するtest PostgreSQLを `TEST_DATABASE_URL` で指定します。
 - `matsu-arcade-auth` が発行する `iss=http://localhost:18084`、`aud=matsu-arcade-api` tokenだけを受け入れます。
 
 ## 作業上の注意
@@ -266,11 +281,11 @@
 
 - Windows PowerShellでは実行ポリシーにより `npm.ps1` が拒否されることがあります。`npm run ...` ではなく `npm.cmd run ...` を使います。
 - Frontend buildは `apps/matsu-front` で `npm.cmd run build` を実行します。
-- FrontendのDocker開発起動は `apps/matsu-front` で `docker compose up` を実行します。Viteは `http://localhost:5173` でhot reloadします。
+- FrontendのDocker開発起動は `apps/matsu-front` で `docker compose up front` を実行します。Viteは `http://localhost:5173` でhot reloadします。
 - BFF buildは `apps/matsu-bff` で `npm.cmd run build` を実行します。
-- Toolbox APIとArcade APIのNode.js品質gateもPowerShellでは `npm.cmd` を使います。DB integration testは各repoのtest profileで実行し、開発DBを共有しません。
-- Arcade Authの検証済み経路はDocker buildとtest profileです。host GHCのversion差を理由に子sourceを変更しません。
-- API testは通常、`apps/matsu-api` のDocker `web` コンテナ内 `/var/www` で `composer test` または `php artisan test` を実行します。
+- Toolbox APIとArcade APIのNode.js品質gateもPowerShellでは `npm.cmd` を使います。両APIの通常Composeにtest/production profileはありません。DB integration testでは別途管理するtest databaseを使い、開発DBを共有しません。
+- Arcade AuthはDocker buildで検証します。Cabal test-suiteは必要な環境変数と別途管理するtest PostgreSQLを用意して実行し、host GHCのversion差を理由に子sourceを変更しません。
+- API testは通常、`apps/matsu-api` のDocker `api` serviceコンテナ内 `/var/www` で `composer test` または `php artisan test` を実行します。
 - APIのconfig cacheにより `.env` の認証変更が隠れる場合があります。`AUTH_SERVER_*` 変更後は `php artisan config:clear` を実行します。
 - JWT認証が `{"message":"Unauthenticated."}` を返す場合、`apps/matsu-api/src/www/storage/logs/laravel.log` を確認します。認証middlewareは理由とともに `JWT authentication failed` を記録します。
 - LaravelがDockerからJWKSを取得するURLは `http://host.docker.internal:18081/.well-known/jwks.json` を使います。

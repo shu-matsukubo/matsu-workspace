@@ -88,21 +88,37 @@ health確認先は次のとおりです。
 - matsu-api: `http://localhost:18080/up`
 - BFF、matsu-auth、Toolbox API、Arcade Auth、Arcade API: 各HTTP base URLの `/health`
 
+## ローカルCompose構成
+
+各Composeは次のservice、container、既存physical named volumeを使います。`-` のFrontにはnamed volumeがなく、`/app/node_modules` はanonymous volumeです。
+
+| モジュール | Compose service | container | physical named volume |
+|---|---|---|---|
+| `matsu-front` | `front` | `matsu-front` | - |
+| `matsu-bff` | `bff`、`bff-redis` | `matsu-bff`、`matsu-bff-redis` | `matsu-bff-redis-data` |
+| `matsu-api` | `api`、`api-db` | `matsu-api`、`matsu-api-db` | `matsu-api-db-data`、`matsu-api-framework-data`、`matsu-api-vendor-data` |
+| `matsu-auth` | `auth`、`auth-db` | `matsu-auth`、`matsu-auth-db` | `matsu-auth-db-data` |
+| `matsu-toolbox-api` | `toolbox-api`、`toolbox-db` | `matsu-toolbox-api`、`matsu-toolbox-db` | `matsu-toolbox-db-data` |
+| `matsu-arcade-auth` | `arcade-auth`、`arcade-auth-db` | `matsu-arcade-auth`、`matsu-arcade-auth-db` | `matsu-arcade-auth-db-data` |
+| `matsu-arcade-api` | `arcade-api`、`arcade-db` | `matsu-arcade-api`、`matsu-arcade-api-db` | `matsu-arcade-api-db-data` |
+
+これらはlocal runtime専用です。test / staging / production用のCompose service、profile、DB、networkはありません。`modules.lock.conf` の `development` / `staging` / `production` はリリース対象commitの区分であり、Compose環境ではありません。Compose healthcheckの `test:` とArcade domainの `player_profiles` もtest環境を意味しません。
+
 ## モジュール別の主なコマンド
 
 コマンドは各module directoryで実行します。PowerShellでは `npm` の代わりに `npm.cmd` を使います。
 
 | モジュール | start | build / quality / test |
 |---|---|---|
-| `matsu-front` | `docker compose up` | `npm.cmd run check`、`npm.cmd run build` |
-| `matsu-bff` | `docker compose up` | `npm.cmd run check`、`npm.cmd test`、`npm.cmd run build` |
-| `matsu-api` | `docker compose up -d` | `web` containerの `/var/www` で `composer pint:test`、`composer analyse`、`composer test` |
-| `matsu-auth` | `docker compose up -d --build` | `docker compose build` |
-| `matsu-toolbox-api` | `docker compose up -d --build` | `npm.cmd run check`、`npm.cmd test`、`npm.cmd run build`、DB testは `docker compose --profile test run --rm test` |
-| `matsu-arcade-auth` | `docker compose up -d --build auth` | `docker compose build auth`、`docker compose --profile test run --rm test` |
-| `matsu-arcade-api` | `docker compose up --build` | `npm.cmd run check`、`npm.cmd test`、`npm.cmd run build`、DB testは `docker compose --profile test run --rm test` |
+| `matsu-front` | `docker compose up front` | `npm.cmd run check`、`npm.cmd run build` |
+| `matsu-bff` | `docker compose up bff` | `npm.cmd run check`、`npm.cmd test`、`npm.cmd run build` |
+| `matsu-api` | `docker compose up -d api` | `api` containerの `/var/www` で `composer pint:test`、`composer analyse`、`composer test` |
+| `matsu-auth` | `docker compose up -d --build auth` | `docker compose build auth` |
+| `matsu-toolbox-api` | `docker compose up --build toolbox-api` | `npm.cmd run check`、`npm.cmd test`、`npm.cmd run build` |
+| `matsu-arcade-auth` | `docker compose up -d --build arcade-auth` | `docker compose build arcade-auth`、`cabal test all --test-show-details=direct` |
+| `matsu-arcade-api` | `docker compose up --build arcade-api` | `npm.cmd run check`、`npm.cmd test`、`npm.cmd run build` |
 
-DBを使うNode/Haskell統合testは各repoのtest profileで専用PostgreSQLを使います。詳細は各moduleのREADMEを参照してください。
+Toolbox APIとArcade APIは、sourceをbind mountし、container専用の `node_modules` を使って `npm run dev` を実行するHono開発serviceです。Windows上の編集もDocker Desktop経由でhot reloadされます。Node.jsのDB integration testは、各moduleのREADMEに従って別途管理するtest databaseを指定します。Arcade AuthのCabal test-suiteも、必要な環境変数と別途管理するtest PostgreSQLを用意して実行します。
 
 ## 必要なもの
 
@@ -250,7 +266,7 @@ scripts\run-arcade-auth-dev.bat
 scripts\run-arcade-api-dev.bat
 ```
 
-これらはDocker DesktopとDocker Engineの起動を待ってから、各repo固有のComposeでサービスを起動します。`run-matsu.bat` はAPI/Authをdetachedで起動し、hot reloadのArcade API、BFF、Frontはログを確認できる別windowで起動します。同じserviceを親側の別Composeから重複起動しません。
+これらはDocker DesktopとDocker Engineの起動を待ってから、各repo固有のComposeで上表のapplication serviceを明示して起動します。依存するDB / RedisはComposeが同じproject内で起動します。`run-matsu.bat` は全application serviceをdetachedで起動するため、別windowを開かず、起動後は呼び出し元のcommand lineへ入力が戻ります。`front`、`bff`、`toolbox-api`、`arcade-api` のhot reloadはdetachedでも有効です。個別launcherは対象serviceをforegroundで起動し、ログを継続表示したい場合に使います。同じserviceを重複起動せず、親に統合Composeも作りません。
 
 ## Codex向けファイル
 
