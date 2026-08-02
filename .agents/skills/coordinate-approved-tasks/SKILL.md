@@ -8,7 +8,7 @@ description: ユーザー承認済みの複数タスクを、依存関係とリ�
 ## 実行条件を確認する
 
 1. 承認されたタスクID、確認事項の回答、除外範囲を固定する。
-2. 承認は、各タスクに必要なbranch作成、明示的なcommit、push、draft Pull Request作成までを許可するものとして扱う。
+2. 承認は、各タスクに必要なbranch作成、明示的なcommit、remoteへの公開、draft Pull Request作成までを許可するものとして扱う。
 3. Pull Requestのmergeは許可に含めない。ユーザーの明示的な指示なしにmergeしない。
 4. 承認外の改善や追加変更を見つけた場合は、作業へ混ぜず新しいタスクとして記録する。
 5. 各タスクについて、実装を所有するGitリポジトリと `.agents/tasks/active/` の明示pathを確定する。タスクファイルがまだなければ、親ワークスペースの `.agents/tasks/TEMPLATE.md` から作成し、実装前にそのファイルだけをcommitする。
@@ -33,12 +33,12 @@ description: ユーザー承認済みの複数タスクを、依存関係とリ�
 
 1. サブエージェントの報告だけでなく、diff、status、検証結果を親が直接確認する。
 2. 要件、リポジトリ境界、文書の正本、テスト範囲に照らしてレビューする。
-3. 修正が必要なら同じタスクへ具体的に差し戻し、修正commitと再検証を求める。
+3. 修正が必要なら同じタスクとbranchへ具体的に差し戻し、既に公開済みなら同じPull Requestで修正commitと再検証を求める。
 4. 承認範囲を超える問題は別タスクへ分ける。
 5. 合格したタスクだけをdraft Pull Request公開へ進める。
 
 ## 完了を報告する
 
-親レビューに合格した実装commitのSHAを確定した後、activeタスクファイルへ実施結果、検証結果、実装commitを記録し、状態を `completed` にして `.agents/tasks/completed/<完了年>/` へ移す。この更新と移動はtask完了commitとし、そのcommit自身のSHAは記録しない。
+親レビューに合格した後、activeタスクファイルへ実施結果と検証結果を記録し、状態を `completed` にして `.agents/tasks/completed/<完了年>/` へ移す。この更新と移動はtask完了commitとする。同一リポジトリの実装commit SHAは必須にせず、別リポジトリの依存commitなど対応関係の確認に必要な場合だけ記録する。
 
-タスクごとにtaskファイル、branch、commit、Pull Request、検証結果、未解決の疑問点を集約する。全タスク完了後に成果物をユーザーへ提出し、差し戻しは新しいタスクとして追加する。
+タスク定義、実装、完了記録は同じtask branchの1つのdraft Pull Requestへ含める。task file stem、branch、Pull Request、検証結果、未解決の疑問点をタスクごとに集約する。公開後のレビュー修正も承認範囲が変わらない限り同じtask、branch、Pull Requestで扱い、責務や対象範囲が増える場合だけ新しいタスクへ分ける。

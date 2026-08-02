@@ -14,6 +14,8 @@
 - 親ワークスペースのタスクファイル用テンプレート
 - タスクファイルの配置、優先度、参照順序に関するAI共通ルール
 - タスクファイルの命名、commit、完了、保管に関する開発手順
+- タスク定義、実装、完了記録を同じPull Requestへ含める公開手順
+- GitHubプラグインを優先するremote公開とlocal git pushのfallback
 - タスク計画、統括、レビュー、Pull Request公開に関するskill
 
 ## 作業内容
@@ -22,6 +24,7 @@
 - `AGENTS.md` と `DEVELOPMENT.md` にタスクファイル運用を記載する
 - 関連する `.agents/skills` へ、各skillの責務に必要な手順だけを反映する
 - このタスクファイルを実装前にcommitし、完了時に結果を記録して `completed/2026/` へ移動する
+- 同一リポジトリのlocal commit SHAに依存せず、task file stem、branch、Pull Requestで対応を確認する
 
 ## 対象外
 
@@ -38,14 +41,13 @@
 - [x] タスクを実装対象のGitリポジトリへ配置し、実装commitと対応付けられる
 - [x] 通常は `active/` だけを参照し、完了済みタスクを無条件に読まない
 - [x] 詳細手順が関連skillへ責務に応じて反映されている
+- [x] タスク定義、実装、完了記録、同一責務のレビュー修正を同じtask branchとPull Requestで扱う
+- [x] GitHubプラグインをremote公開の第一選択とし、local treeとの一致を検証する
+- [x] local git pushをfallbackとし、認証失敗時に自動loginやcredential保存を行わない
 - [x] `git diff --check`、baseとの差分、statusに問題がない
 
 ## 実施結果
 
-- 変更内容: 正本テンプレートを追加し、共通ルール、開発手順、タスク計画・統括・レビュー・Pull Request公開の各skillへ運用を反映した。
-- 検証結果: `git diff --check main...HEAD`、テンプレート必須項目の確認、旧branch命名の残存検索、baseとの差分とsubmoduleを含むstatus確認に成功した。
-
-## 関連コミット
-
-- `c4ffb8c` タスク定義
-- `5a3e45e` テンプレート、文書、skillの実装
+- 変更内容: 正本テンプレートを追加し、共通ルール、開発手順、タスク計画・統括・レビュー・Pull Request公開の各skillへ運用を反映した。レビュー修正として、同一Pull Requestへの集約、GitHubプラグイン優先のremote公開、push時の認証方針を明確化した。
+- 検証結果: `git diff --check`、`git diff --check main...HEAD`、用語検索、baseとの差分とsubmoduleを含むstatus確認に成功した。
+- 公開先: `codex/2026-08-02-workspace-task-file-management` / draft Pull Request `#5`
