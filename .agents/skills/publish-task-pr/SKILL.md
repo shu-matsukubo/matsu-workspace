@@ -7,10 +7,11 @@ description: 承認済みタスクのレビュー済み変更を、リポジト�
 
 ## 公開前条件を確認する
 
-1. タスクID、承認範囲、親レビュー、必要な検証が完了していることを確認する。
-2. 対象リポジトリ、現在のbranch、base branch、remoteを確認する。
-3. `git status`、baseとの差分、直近commitを確認し、対象外の変更、secret、未解決の競合がないことを確認する。
-4. branch名が `codex/<task-id>-<summary>` になっていることを確認する。
+1. タスクファイルが `.agents/tasks/completed/<完了年>/` にあり、状態、実施結果、検証結果、実装commitが更新されていることを確認する。
+2. タスクID、承認範囲、親レビュー、必要な検証が完了していることを確認する。
+3. 対象リポジトリ、現在のbranch、base branch、remoteを確認する。
+4. `git status`、baseとの差分、直近commitを確認し、対象外の変更、secret、未解決の競合がないことを確認する。
+5. branch名が `codex/<task-file-stem>` になっていることを確認する。
 
 子リポジトリと `docs` のbaseは `develop`、親スーパープロジェクトのbaseは `main` とする。各repoのbaseへ直接pushしない。
 
@@ -26,6 +27,7 @@ description: 承認済みタスクのレビュー済み変更を、リポジト�
 branchをremoteへpushし、draft Pull Requestを作成する。本文に次を含める。
 
 - 対応したタスクと目的
+- 完了済みタスクファイルのpath
 - 主な変更
 - 実行した検証と結果
 - 疑問点メモ、未実施検証、残るリスク
