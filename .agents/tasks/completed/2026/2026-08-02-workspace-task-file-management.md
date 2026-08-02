@@ -27,7 +27,7 @@
 
 - 子リポジトリ、`docs`、gitlink、`modules.lock.conf` の変更
 - README、実装コードの変更
-- push、Pull Request作成、merge
+- merge
 - 状態別ディレクトリ、手動index、空ディレクトリ維持ファイルの追加
 
 ## 完了条件
