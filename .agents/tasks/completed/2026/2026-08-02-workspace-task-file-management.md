@@ -1,0 +1,53 @@
+# タスクファイル管理を導入する
+
+- 状態: completed
+- 優先度: normal
+- 対象リポジトリ: `matsu-workspace`
+- 依存タスク: なし
+
+## 目的
+
+具体的な作業タスクを実装と同じGit履歴へ保存し、作業中のタスクを容易に特定しながら、完了済みタスクを通常の探索から外せる運用を定める。
+
+## 対象範囲
+
+- 親ワークスペースのタスクファイル用テンプレート
+- タスクファイルの配置、優先度、参照順序に関するAI共通ルール
+- タスクファイルの命名、commit、完了、保管に関する開発手順
+- タスク定義、実装、完了記録を同じPull Requestへ含める公開手順
+- GitHubプラグインを優先するremote公開とlocal git pushのfallback
+- タスク計画、統括、レビュー、Pull Request公開に関するskill
+
+## 作業内容
+
+- `.agents/tasks/TEMPLATE.md` を正本テンプレートとして追加する
+- `AGENTS.md` と `DEVELOPMENT.md` にタスクファイル運用を記載する
+- 関連する `.agents/skills` へ、各skillの責務に必要な手順だけを反映する
+- このタスクファイルを実装前にcommitし、完了時に結果を記録して `completed/2026/` へ移動する
+- 同一リポジトリのlocal commit SHAに依存せず、task file stem、branch、Pull Requestで対応を確認する
+
+## 対象外
+
+- 子リポジトリ、`docs`、gitlink、`modules.lock.conf` の変更
+- README、実装コードの変更
+- merge
+- 状態別ディレクトリ、手動index、空ディレクトリ維持ファイルの追加
+
+## 完了条件
+
+- [x] テンプレートが必要最小限の項目を持つ
+- [x] 優先度が `high`、`normal`、`low` の3値で定義され、既定値が `normal` になっている
+- [x] 依存関係を着手可否、優先度を着手可能なタスク間の順序として扱う
+- [x] タスクを実装対象のGitリポジトリへ配置し、実装commitと対応付けられる
+- [x] 通常は `active/` だけを参照し、完了済みタスクを無条件に読まない
+- [x] 詳細手順が関連skillへ責務に応じて反映されている
+- [x] タスク定義、実装、完了記録、同一責務のレビュー修正を同じtask branchとPull Requestで扱う
+- [x] GitHubプラグインをremote公開の第一選択とし、local treeとの一致を検証する
+- [x] local git pushをfallbackとし、認証失敗時に自動loginやcredential保存を行わない
+- [x] `git diff --check`、baseとの差分、statusに問題がない
+
+## 実施結果
+
+- 変更内容: 正本テンプレートを追加し、共通ルール、開発手順、タスク計画・統括・レビュー・Pull Request公開の各skillへ運用を反映した。レビュー修正として、同一Pull Requestへの集約、GitHubプラグイン優先のremote公開、push時の認証方針を明確化した。
+- 検証結果: `git diff --check`、`git diff --check main...HEAD`、用語検索、baseとの差分とsubmoduleを含むstatus確認に成功した。
+- 公開先: `codex/2026-08-02-workspace-task-file-management` / draft Pull Request `#5`
