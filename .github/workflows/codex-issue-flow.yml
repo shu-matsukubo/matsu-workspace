@@ -1,0 +1,35 @@
+name: Codex Issue Flow
+
+on:
+  issues:
+    types:
+      - opened
+      - labeled
+  issue_comment:
+    types:
+      - created
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: codex-issue-${{ github.repository_id }}-${{ github.event.issue.number }}
+  queue: max
+
+jobs:
+  dispatch-or-sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout default branch dispatcher
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+
+      - name: Dispatch Codex or synchronize state
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
+        with:
+          script: |
+            const flow = require('./.github/scripts/codex-issue-flow.cjs');
+            await flow.run({ github, context, core });

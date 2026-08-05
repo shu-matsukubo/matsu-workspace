@@ -12,6 +12,7 @@ description: 承認済みタスクのレビュー済み変更を、リポジト�
 3. 対象リポジトリ、現在のbranch、base branch、remoteを確認する。
 4. `git status`、baseとの差分、直近commitを確認し、対象外の変更、secret、未解決の競合がないことを確認する。
 5. branch名が `codex/<task-file-stem>` になっていることを確認する。
+6. Issue駆動でテスト実行をCIへ委譲した場合は、必要なテストコード、既存workflowのcoverage、ローカル未実行の記録を確認する。CI未実行はdraft Pull Request公開を妨げないが、成功扱いにしない。
 
 子リポジトリと `docs` のbaseは `develop`、親スーパープロジェクトのbaseは `main` とする。各repoのbaseへ直接pushしない。
 
@@ -49,10 +50,13 @@ remote branchの公開後、GitHubプラグインでdraft Pull Requestを作成�
 - 完了済みタスクファイルのpath
 - 主な変更
 - 実行した検証と結果
+- CIへ委譲したworkflow/job、未実行項目、CI失敗時に同じtask・branch・Pull Requestで修正すること
 - 疑問点メモ、未実施検証、残るリスク
 - 依存するPull Requestやmerge順序
 
 公開後にURL、head、base、draft状態、remote headとローカルのtree SHA一致を確認する。Pull Requestをmergeしない。
+
+CI結果待ちのために同じCodexタスク内でポーリングしない。draft Pull RequestとIssueへ「CI待ち」を明記して終了する。
 
 既存Pull Requestへのレビュー修正は、承認範囲が変わらない限り新しいタスクやbranchを作らず、同じtask branchを上記手順で更新する。
 

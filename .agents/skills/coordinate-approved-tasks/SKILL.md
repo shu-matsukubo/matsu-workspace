@@ -12,12 +12,14 @@ description: ユーザー承認済みの複数タスクを、依存関係とリ�
 3. Pull Requestのmergeは許可に含めない。ユーザーの明示的な指示なしにmergeしない。
 4. 承認外の改善や追加変更を見つけた場合は、作業へ混ぜず新しいタスクとして記録する。
 5. 各タスクについて、実装を所有するGitリポジトリと `.agents/tasks/active/` の明示pathを確定する。タスクファイルがまだなければ、親ワークスペースの `.agents/tasks/TEMPLATE.md` から作成し、実装前にそのファイルだけをcommitする。
+6. Issue駆動では最新計画のrevisionとhash、未回答質問、前提条件、依存Issue・task・Pull Request、対象CIをGitHubとworkflowから再取得する。計画時点の状態だけで実装を開始しない。
 
 ## 割り当てる
 
 - 1つの作業用サブエージェントへ、原則として1タスクと1つの責務を割り当てる。
 - 同じリポジトリを同時に編集する割り当てを避ける。独立リポジトリのタスクは依存関係がなければ並列化する。
-- 依存タスクが完了したタスクだけを着手可能とし、ユーザーの明示指定、`high`、`normal`、`low`、作成日の古い順で選ぶ。`high` のタスクを止めている依存タスクは、記録値を変えず実効的に `high` として扱う。
+- `start`を止めるhard dependencyが完了したタスクだけを着手可能とし、ユーザーの明示指定、`high`、`normal`、`low`、作成日の古い順で選ぶ。soft dependencyとordering dependencyは実装開始を止めない。`high` のタスクを止めている依存タスクは、記録値を変えず実効的に `high` として扱う。
+- 依存グラフをtaskごとに評価し、一つの未完了依存を理由に独立taskまで停止しない。循環時は単純な依存待ちにせず、経路と解消案をIssueへ報告する。
 - 各依頼にタスクファイルの明示path、対象ファイル、完了条件、禁止事項、必要な検証、branch名、base branchを明記する。
 - 子リポジトリと `docs` は `develop` をbaseにし、親スーパープロジェクトは `main` をbaseにする。
 - branch名は `codex/<task-file-stem>` とする。
@@ -28,6 +30,8 @@ description: ユーザー承認済みの複数タスクを、依存関係とリ�
 - 進行不能な疑問だけを親へ即時エスカレーションさせる。
 - 関係のない変更、既存の未commit変更、別タスクの差分をstageまたは修正させない。
 - 子リポジトリの成果を先にreview・公開し、親gitlinkやlockは子Pull Requestのmerge後に扱う。
+- hard dependencyまたはCI結果を同じCodexタスク内でポーリングしない。Issueへ現在状態、先行可能なtask、再開条件とユーザー操作を記録して終了する。
+- Issue駆動の`issue-ci-delegated`では必要なテストコードを実装に含め、`verify-changes`で既存CI coverageを確認する。ローカル未実行のテストを成功扱いにしない。
 
 ## 親レビューを行う
 
