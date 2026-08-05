@@ -26,13 +26,15 @@ git pull --ff-only
 sh scripts/setup.sh
 ```
 
-開発branchの最新版へ切り替える場合は、全モジュールがcleanであることを確認して次を実行します。
+親ワークスペースを `main`、各モジュールを開発branchの最新版へ切り替える場合は、親の通常ファイルに変更がなく、各モジュールがcleanであることを確認して次を実行します。
 
 ```sh
 sh scripts/sync-dev.sh
 ```
 
 Windowsでは `scripts\sync-dev.bat` から同じ処理を実行できます。
+
+親ではlocal `main` の存在と、現在branchの `.gitmodules` および `modules.dev.conf` がlocal `main` と一致することを確認してから `main` へ切り替えます。親のfetchやfast-forwardは行いません。子モジュールに未commit変更、未push commit、分岐、または想定外branchがある場合もbranch切替前に停止します。
 
 ## 開発環境の起動
 

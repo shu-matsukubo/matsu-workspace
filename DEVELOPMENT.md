@@ -80,7 +80,7 @@ clone直後または親リポジトリ更新後は、親gitlinkの位置へ揃�
 sh scripts/setup.sh
 ```
 
-日常開発の開始時は、全リポジトリがcleanであることを確認して開発branchを同期します。
+日常開発の開始時は、親の通常ファイルに変更がなく、各モジュールがcleanであることを確認し、親を `main`、各モジュールを開発branchへ同期します。
 
 ```sh
 sh scripts/sync-dev.sh
@@ -92,7 +92,7 @@ Windowsでは次のランチャーを使用できます。
 scripts\sync-dev.bat
 ```
 
-`sync-dev.sh` は各モジュールを `modules.dev.conf` のbranchへ切り替え、`origin` の最新版までfast-forwardします。未commit変更、未push commit、分岐、または想定外branchがある場合は変更前に停止します。
+`sync-dev.sh` は、親にlocal `main` が存在すること、親の通常ファイル・stage済み差分・未追跡ファイルがないこと、現在branchの `.gitmodules` と `modules.dev.conf` がlocal `main` と一致することを確認します。続けて、各モジュールがcleanで、設定された開発branchへ安全に更新できることを事前確認します。すべての確認後に親を `main` へ切り替え、各モジュールを `modules.dev.conf` のbranchへ切り替えて `origin` の最新版までfast-forwardします。親のfetchやfast-forwardは行いません。子モジュールに未commit変更、未push commit、分岐、または想定外branchがある場合も、いずれのbranchも切り替える前に停止します。
 
 ## 2. 子リポジトリまたはdocsで作業
 
@@ -253,7 +253,7 @@ git diff --submodule=log
 ```
 
 - 管理スクリプトはcommitやpushを自動実行しない。
-- `sync-dev.sh` は未commit変更、未push commit、分岐、想定外branchがある場合に停止する。
+- `sync-dev.sh` は、親ではlocal `main` 不在、通常ファイル・stage済み差分・未追跡ファイル、同期定義の不一致を、子では未commit変更、未push commit、分岐、想定外branchを検出した場合に、branch切替前に停止する。
 - `update-lock.sh` と `promote-lock.sh` は、親の通常ファイルまたはstage済み差分、未追跡ファイル、dirtyな子リポジトリがある場合に停止する。
 - 未stageのgitlink差分は子リポジトリ作業中の通常状態として扱うが、意図した統合タスク以外ではstageしない。
 - `update-lock.sh` はoriginで確認できないlocal-only commitをlockへ記録しない。
