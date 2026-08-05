@@ -11,6 +11,12 @@ require_command grep
 init_workspace "$SCRIPT_DIR"
 validate_manifest_shape
 ensure_parent_files_clean
+
+git -C "$WORKSPACE_ROOT" show-ref --verify --quiet refs/heads/main ||
+    die "親リポジトリにlocal mainがありません。"
+git -C "$WORKSPACE_ROOT" diff --quiet refs/heads/main -- .gitmodules modules.dev.conf ||
+    die "現在branchの.gitmodulesまたはmodules.dev.confがlocal mainと異なります。同期定義をmainへ反映するか、mainと同じ内容へ戻してから再実行してください。"
+
 ensure_all_modules_clean
 
 info "開発branchの更新可否を確認しています..."
@@ -44,6 +50,9 @@ for module in $(module_paths); do
     fi
 done
 
+info "親リポジトリをmainへ切り替えています..."
+git -C "$WORKSPACE_ROOT" switch main
+
 info "全モジュールを開発branchへ揃えています..."
 for module in $(module_paths); do
     branch=$(dev_branch "$module")
@@ -63,4 +72,4 @@ for module in $(module_paths); do
     info "  完了: $module -> $branch @ $(git -C "$repository" rev-parse --short=12 HEAD)"
 done
 
-info "開発用branchの同期が完了しました。commitやpushは行っていません。"
+info "親mainと開発用branchの同期が完了しました。commitやpushは行っていません。"

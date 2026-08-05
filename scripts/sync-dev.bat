@@ -16,7 +16,7 @@ set "RESULT=%ERRORLEVEL%"
 
 echo.
 if "%RESULT%"=="0" (
-    echo Development modules are ready.
+    echo Parent workspace and development modules are ready.
 ) else (
     echo Module synchronization failed. Review the error above.
 )
