@@ -93,3 +93,15 @@ git diff --submodule=log
 - システム全体の設計: [docs/README.md](docs/README.md)
 
 日常の作業は、対象の子リポジトリでbranchを作成し、実装と検証を完結させます。親リポジトリのgitlinkや `modules.lock.conf` は、子リポジトリの変更が承認・mergeされた後に別タスクとして更新します。
+
+## GitHub IssueからCodexへ依頼する
+
+親`matsu-workspace`のIssueを作業依頼と状態管理の正本にできます。repository ownerがIssueを作成すると、default branch上のActionsが`@codex`コメントを投稿し、CodexはIssue全体を調査して質問または計画を返します。計画が出ても、承認までは実装しません。
+
+ユーザー操作は次の一時コマンドラベルだけです。コメントを書いてからラベルを付け、Actionsがdispatchに成功するとラベルは自動で外れます。
+
+- `Codex:回答済`: 最新質問への回答を再評価する
+- `Codex:差し戻し`: 最新計画後のコメントを反映してrevisionを更新する
+- `Codex:承認`: 最新計画を承認し、前提・依存・CIの再確認後に実装を開始する
+
+`Codex:処理中`、`Codex:回答待ち`、`Codex:承認待ち`、`Codex:依存待ち`、`Codex:要判断`、`Codex:PR作成済`は現在状態を示すActions管理ラベルです。Pull Requestはdraftで作成され、自動mergeされません。詳細な状態遷移、依存関係、再開方法、受け入れ試験は [DEVELOPMENT.md](DEVELOPMENT.md#github-issue駆動のcodexフロー) を確認してください。

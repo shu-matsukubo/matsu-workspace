@@ -1,0 +1,40 @@
+name: Parent CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  issue-flow:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Check JavaScript syntax
+        run: |
+          node --check .github/scripts/codex-issue-flow.cjs
+          node --check .agents/skills/handle-github-issue-event/scripts/analyze-dependencies.mjs
+
+      - name: Run Issue flow unit tests
+        run: >-
+          node --test
+          .github/scripts/codex-issue-flow.test.cjs
+          .agents/skills/handle-github-issue-event/scripts/analyze-dependencies.test.mjs
+          .agents/skills/handle-github-issue-event/scripts/hash-issue-state.test.mjs
+
+      - name: Check pull request whitespace errors
+        if: github.event_name == 'pull_request'
+        run: git diff --check "${{ github.event.pull_request.base.sha }}...HEAD"
+
+      - name: Check pushed commit whitespace errors
+        if: github.event_name == 'push'
+        run: git diff-tree --check --root HEAD
