@@ -53,12 +53,12 @@ Codex Cloudのセットアップ時に、親リポジトリのbranchやHEADを�
 - [x] Cloud同期による未stageのgitlink差分を通常状態として扱い、明示要求なしにcommitしないことが文書化される
 - [x] Local用 `scripts/sync-dev.sh`、`scripts/setup.sh`、manifest、lock、gitlinkに不要な変更がない
 - [x] shell構文検査、isolated fixtureの動作検証、`git diff --check`、base差分確認が成功する
-- [ ] 親レビューに合格し、`main` 向けdraft Pull Requestが作成される
+- [x] 親レビューに合格し、`main` 向けdraft Pull Requestが作成される
 
 ## 実施結果
 
 - 変更内容: 親checkoutを変更せず、全モジュールの安全性を事前確認してから開発branch最新へfast-forwardする `scripts/sync-dev-cloud.sh` を追加した。Local版との使い分けと、Cloud同期で生じる未stageのgitlink差分の扱いを `README.md`、`DEVELOPMENT.md`、`AGENTS.md` へ記録した。
 - ローカル検証: Git Bashで `sh -n scripts/setup.sh`、`sh -n scripts/sync-dev.sh`、`sh -n scripts/sync-dev-cloud.sh` に成功した。isolated local Git fixtureでlocal `main` 不在の成功系、2モジュールとnested submoduleの同期、親branch・HEAD・index・commit履歴不変、意図したgitlink差分だけの発生、想定外branch・dirty・ahead・diverged・detached local-only commitの安全停止を確認した。`git diff --check origin/main...HEAD`、対象外ファイルとgitlinkのbase差分なし、worktree clean確認にも成功した。ShellCheckは環境に未導入のため未実施。
 - CI委譲: なし
-- Pull Request: 未作成（task完了commitの公開後に `main` 向けdraft Pull Requestを作成する）
+- Pull Request: `main` 向けdraft Pull Request [#13](https://github.com/shu-matsukubo/matsu-workspace/pull/13) を作成した
 - 残るリスク: 実worktreeの8サブモジュールを変更しないため実remoteに対するend-to-end同期は未実施。local bare remoteを用いた同一Git操作経路で代替検証した。
