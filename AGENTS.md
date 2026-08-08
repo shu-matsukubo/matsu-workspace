@@ -20,7 +20,7 @@
 - 承認済みタスクは、承認範囲内のブランチ作成、実装、検証、commit、remoteへの公開、draft Pull Request作成までを許可します。mergeは行いません。
 - タスクブランチは `codex/<task-file-stem>` とします。子モジュールと `docs` のPull Requestは `develop`、親ワークスペースのPull Requestは `main` を向き先とします。
 - 承認範囲外の改善は実装せず、追加タスクとして提案してください。要件を安全に確定できない場合は推測せず、ユーザーへ確認してください。
-- GitHub Issue駆動では、承認前は信頼できるCodexの最新計画コメント、承認後は各リポジトリのtask fileを承認範囲の正本とします。Issueイベントの判定と既存skillsへの接続には `.agents/skills/handle-github-issue-event` を使用します。
+- GitHub Issue駆動では、repository ownerのIssue上の`@codex`付き自然言語コメントだけを起点とし、承認前は信頼できるCodexの最新計画コメント、承認後は各リポジトリのtask fileを承認範囲の正本とします。意図の判定と既存skillsへの接続には `.agents/skills/handle-github-issue-event` を使用します。
 
 ## タスクファイル
 

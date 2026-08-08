@@ -7,6 +7,7 @@ import { canonicalSource, compareOrdinal, normalizePlan, planHash, sourceHash } 
 
 function fixture() {
   return {
+    sourceOwnerCommentId: 2,
     issue: {
       repository: 'owner/repo', number: 7, title: '機能A', body: '要件\r\n本文',
       updatedAt: '2026-08-06T00:00:00Z',
@@ -49,9 +50,31 @@ test('all owner comments are canonicalized in time order', () => {
   assert.ok(canonical.indexOf('補足1') < canonical.indexOf('補足2'));
 });
 
+test('comments after the source boundary do not change an approved plan source', () => {
+  const beforeCommand = fixture();
+  const afterCommand = fixture();
+  afterCommand.ownerComments.push({
+    id: 3, authorId: 10, createdAt: '2026-08-06T00:03:00Z', body: '@codex 実装お願いします',
+  });
+  assert.equal(sourceHash(beforeCommand), sourceHash(afterCommand));
+
+  afterCommand.sourceOwnerCommentId = 3;
+  assert.notEqual(sourceHash(beforeCommand), sourceHash(afterCommand));
+});
+
+test('source boundary must identify exactly one owner comment', () => {
+  const missing = fixture();
+  missing.sourceOwnerCommentId = 999;
+  assert.throws(() => canonicalSource(missing), /一意に特定/);
+
+  const duplicate = fixture();
+  duplicate.ownerComments.push({ ...duplicate.ownerComments[0] });
+  assert.throws(() => canonicalSource(duplicate), /一意に特定/);
+});
+
 test('plan hash excludes its result marker and normalizes newlines and trailing spaces', () => {
-  const key = 'a'.repeat(64);
-  const marker = `<!-- codex-issue-flow state=plan revision=1 handled-dispatch-key=${key} source-sha256=${key} plan-sha256=${key} -->`;
+  const hash = 'a'.repeat(64);
+  const marker = `<!-- codex-issue-flow state=plan revision=1 handled-owner-comment-id=2 source-owner-comment-id=2 source-sha256=${hash} plan-sha256=${hash} -->`;
   assert.equal(normalizePlan(`計画  \r\n\r\n${marker}\r\n`), '計画');
   assert.equal(planHash(`計画\n${marker}`), planHash('計画'));
 });

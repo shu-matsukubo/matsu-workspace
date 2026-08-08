@@ -6,6 +6,7 @@
 - 起点Issue: `<owner/repository#number または なし>`
 - 承認済み計画: `<revision、comment URL、plan SHA-256 または通常承認の識別情報>`
 - 承認時source SHA-256: `<Issue駆動でhashを固定。通常承認は なし>`
+- 承認時source境界owner comment ID: `<Issue駆動で境界を固定。通常承認は なし>`
 - 検証モード: `normal` (`issue-ci-delegated` を選ぶ場合は既存CIのcoverageを確認する)
 
 ## 目的

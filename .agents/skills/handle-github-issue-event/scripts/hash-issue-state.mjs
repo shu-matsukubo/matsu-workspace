@@ -5,11 +5,16 @@ import fs from 'node:fs';
 import process from 'node:process';
 import { pathToFileURL } from 'node:url';
 
-const CONTROL_LABELS = new Set([
+const LEGACY_COMMAND_LABELS = [
   'Codex:回答済', 'Codex:差し戻し', 'Codex:承認',
+];
+
+const STATE_LABELS = [
   'Codex:処理中', 'Codex:回答待ち', 'Codex:承認待ち',
   'Codex:依存待ち', 'Codex:要判断', 'Codex:PR作成済',
-]);
+];
+
+const CONTROL_LABELS = new Set([...LEGACY_COMMAND_LABELS, ...STATE_LABELS]);
 
 const DEPENDENCY_FIELDS = [
   'id', 'kind', 'state', 'completion', 'headSha', 'mergeCommitSha', 'mergedAt', 'closedAt',
@@ -43,12 +48,16 @@ function dependencyProjection(item) {
 
 export function canonicalSource(input) {
   if (!input || !input.issue) throw new Error('issueを指定してください。');
+  const sourceOwnerCommentId = Number(input.sourceOwnerCommentId);
+  if (!Number.isSafeInteger(sourceOwnerCommentId) || sourceOwnerCommentId < 1) {
+    throw new Error('sourceOwnerCommentIdへ正の整数を指定してください。');
+  }
   const labels = (input.labels || [])
     .map((label) => typeof label === 'string' ? label : label.name)
     .map(normalizeText)
     .filter((label) => !CONTROL_LABELS.has(label))
     .sort(compareOrdinal);
-  const ownerComments = (input.ownerComments || [])
+  const allOwnerComments = (input.ownerComments || [])
     .map((comment) => ({
       id: Number(comment.id),
       authorId: Number(comment.authorId),
@@ -56,6 +65,13 @@ export function canonicalSource(input) {
       body: normalizeText(comment.body),
     }))
     .sort((a, b) => compareOrdinal(a.createdAt, b.createdAt) || a.id - b.id);
+  const boundaryIndexes = allOwnerComments
+    .map((comment, index) => comment.id === sourceOwnerCommentId ? index : -1)
+    .filter((index) => index >= 0);
+  if (boundaryIndexes.length !== 1) {
+    throw new Error('sourceOwnerCommentIdに一致するowner commentを一意に特定できません。');
+  }
+  const ownerComments = allOwnerComments.slice(0, boundaryIndexes[0] + 1);
   const dependencies = (input.dependencies || [])
     .map(dependencyProjection)
     .sort((a, b) => compareOrdinal(canonicalJson(a), canonicalJson(b)));
@@ -67,6 +83,7 @@ export function canonicalSource(input) {
       title: normalizeText(input.issue.title),
       body: normalizeText(input.issue.body),
     },
+    sourceOwnerCommentId,
     labels,
     ownerComments,
     dependencies,
