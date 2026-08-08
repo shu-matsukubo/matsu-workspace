@@ -69,4 +69,4 @@ GitHub Issue駆動Codexフローを、ユーザーがコマンドラベルを操
 - 変更内容: workflowをownerの`@codex`付きIssueコメントと`main` pushだけに限定し、dispatcherをowner comment ID基準の冪等な状態同期へ移行した。owner comment境界付きsource hash、自然言語intent routing、Pull Request差し戻し継続、旧コマンドラベル移行をskills・protocol・task template・利用文書へ反映した。
 - ローカル検証: `node --check` 3件成功。dispatcher、dependency/cycle、hash helperの`node --test`は47件すべて成功。skill-creatorの`quick_validate.py`、workflow 2件とskill metadataのYAML parse、`git diff --check`も成功。独立エージェントのフォワードテストで、実装承認と要件変更の混在を`revise`として再計画へ戻すことを確認した。
 - CI委譲: なし（`normal`でローカル検証を完了。draft Pull Request作成後のCIはGitHub上で実行予定）
-- Pull Request: 未作成（このcommit後に`main`向けdraft Pull Requestを作成し、URLを追記する）
+- Pull Request: `main`向けdraft Pull Request [#14](https://github.com/shu-matsukubo/matsu-workspace/pull/14) を作成した
