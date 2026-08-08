@@ -10,7 +10,7 @@ description: 承認済み要件に対する変更差分を、正しさ、回帰�
 1. 明示されたタスクファイルから、承認済みタスク、完了条件、確認事項、対象外を読み直す。明示pathがない場合だけ対象リポジトリの `.agents/tasks/active/` を確認し、過去判断が必要でなければ `completed/` を読まない。
 2. 対象までの `AGENTS.md` と関連README、設計文書を確認する。
 3. `git status` とbaseからのdiffを確認し、対象外のファイルや別タスクの差分を分離する。
-4. Issue駆動では承認済みrevision・plan/source hashと現在のIssue前提を照合し、実装開始後の前提変更や承認範囲外の差分がないか確認する。
+4. Issue駆動では承認済みrevision・plan/source hash・source境界のowner comment IDと現在のIssue前提を照合し、境界後または実装開始後の前提変更や承認範囲外の差分がないか確認する。
 
 ## 重要度順に確認する
 
@@ -27,6 +27,8 @@ description: 承認済み要件に対する変更差分を、正しさ、回帰�
 文書の事実は、OpenAPIが存在する契約ではOpenAPIを優先し、それ以外は実装と自動テストで確認する。CIやコマンドはworkflowとmanifestを正本にする。
 
 Issue駆動のCI委譲では、必要なテストコードが差分に含まれること、対象workflowがそのテスト・静的解析・buildを実行すること、未実行項目が成功と記載されていないことを確認する。CI coverageがなければコード変更を合格扱いにしない。
+
+Pull Request差し戻しのレビューでは、Pull Requestの最新review、未解決thread、inline comment、CI結果と現在コードを正本にし、同じtask・branch・Pull Requestの承認範囲内であることを確認する。解決済みまたは現在コードと一致しない古い指摘を再適用しない。
 
 ## 指摘を提示する
 
