@@ -84,7 +84,7 @@ default branchへ反映済みのGitHub Issue駆動Codexフローについて、A
   - アプリケーションコード、workflow、skill、文書に差分がないことを確認
 - 親レビュー: 2026-08-08にIssue #10の最終状態、Actions run/job、dispatch comment、Codex result不在、対照Issue #6、差分境界と検証記録を再取得して確認し、指摘なし。
 - CI委譲: なし。外部受け入れ試験であり、コード変更もない。
-- Pull Request: 未作成（親エージェントが親レビュー後に同task branchからdraft Pull Requestを作成する）
+- Pull Request: [matsu-workspace PR #11](https://github.com/shu-matsukubo/matsu-workspace/pull/11)（draft、base `main`）
 - 残るリスク:
   - Actions bot投稿をCodex connectorが受理しない正確なプラットフォーム条件は未確定。
   - resultがない場合に`Codex:処理中`が残留するため、現状はownerによる手動起動と状態確認が必要。
