@@ -138,6 +138,17 @@ scripts\sync-dev.bat
 
 `sync-dev.sh` は、親にlocal `main` が存在すること、親の通常ファイル・stage済み差分・未追跡ファイルがないこと、現在branchの `.gitmodules` と `modules.dev.conf` がlocal `main` と一致することを確認します。続けて、各モジュールがcleanで、設定された開発branchへ安全に更新できることを事前確認します。すべての確認後に親を `main` へ切り替え、各モジュールを `modules.dev.conf` のbranchへ切り替えて `origin` の最新版までfast-forwardします。親のfetchやfast-forwardは行いません。子モジュールに未commit変更、未push commit、分岐、または想定外branchがある場合も、いずれのbranchも切り替える前に停止します。
 
+Codex Cloudでは、checkoutされた親branchを維持したまま、セットアップとCloud専用同期を順に実行します。
+
+```sh
+sh scripts/setup.sh
+sh scripts/sync-dev-cloud.sh
+```
+
+`sync-dev-cloud.sh` は `setup.sh` による初期化済み状態を前提とし、親のlocal `main` を要求しません。親のbranch、HEAD、indexには触れず、全モジュールのclean状態、remote branch、現在のcheckout、local開発branchのfast-forward可否を事前確認してから、各モジュールを `origin/<開発branch>` の最新commitへfast-forwardし、nested submoduleを同期します。local-only commit、ahead、分岐、想定外branchがある場合は強制的に破棄せず、いずれのモジュールも切り替える前に停止します。
+
+同期後に表示される未stageのgitlink差分は、Cloud作業環境を開発branchの最新へ合わせた意図した状態です。明示された親統合タスクでない限りstageまたはcommitせず、作業対象の変更と分けて扱います。
+
 ## 2. 子リポジトリまたはdocsで作業
 
 対象リポジトリ内でタスクbranchを作成します。
@@ -298,6 +309,7 @@ git diff --submodule=log
 
 - 管理スクリプトはcommitやpushを自動実行しない。
 - `sync-dev.sh` は、親ではlocal `main` 不在、通常ファイル・stage済み差分・未追跡ファイル、同期定義の不一致を、子では未commit変更、未push commit、分岐、想定外branchを検出した場合に、branch切替前に停止する。
+- `sync-dev-cloud.sh` は親のbranch、HEAD、indexを変更せず、子では未commit変更、local-only commit、ahead、分岐、想定外branchを検出した場合に、全モジュールの更新前に停止する。
 - `update-lock.sh` と `promote-lock.sh` は、親の通常ファイルまたはstage済み差分、未追跡ファイル、dirtyな子リポジトリがある場合に停止する。
 - 未stageのgitlink差分は子リポジトリ作業中の通常状態として扱うが、意図した統合タスク以外ではstageしない。
 - `update-lock.sh` はoriginで確認できないlocal-only commitをlockへ記録しない。
