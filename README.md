@@ -26,7 +26,7 @@ git pull --ff-only
 sh scripts/setup.sh
 ```
 
-親ワークスペースを `main`、各モジュールを開発branchの最新版へ切り替える場合は、親の通常ファイルに変更がなく、各モジュールがcleanであることを確認して次を実行します。
+ローカル開発では、親ワークスペースを `main`、各モジュールを開発branchの最新版へ切り替えるため、親の通常ファイルに変更がなく、各モジュールがcleanであることを確認して次を実行します。
 
 ```sh
 sh scripts/sync-dev.sh
@@ -35,6 +35,15 @@ sh scripts/sync-dev.sh
 Windowsでは `scripts\sync-dev.bat` から同じ処理を実行できます。
 
 親ではlocal `main` の存在と、現在branchの `.gitmodules` および `modules.dev.conf` がlocal `main` と一致することを確認してから `main` へ切り替えます。親のfetchやfast-forwardは行いません。子モジュールに未commit変更、未push commit、分岐、または想定外branchがある場合もbranch切替前に停止します。
+
+Codex Cloudでは、環境セットアップに次を指定します。
+
+```sh
+sh scripts/setup.sh
+sh scripts/sync-dev-cloud.sh
+```
+
+`sync-dev-cloud.sh` は親のlocal `main` を要求せず、親のbranch、HEAD、indexを変更しません。初期化済みの各モジュールがcleanで、local-only commit、分岐、または想定外branchがないことを全件確認してから、`modules.dev.conf` の開発branchへ切り替え、`origin` の最新版までfast-forwardします。nested submoduleも同期します。親gitlinkとの差分はCloud作業環境を開発branchの最新へ合わせた意図した状態であり、明示された親統合タスクでない限りcommitしません。
 
 ## 開発環境の起動
 

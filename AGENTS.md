@@ -37,6 +37,7 @@
 - 子モジュールの変更は対象リポジトリで先にcommitします。子変更のmerge後、親gitlinkと `modules.lock.conf` の更新を親リポジトリの別commitとして扱います。
 - GitHub側のbranch、commit、Pull Requestの作成・更新はGitHubプラグインを優先し、local gitのpushはプラグインで安全に公開できない場合だけ使用します。pushの認証に失敗した場合は、新しい認証を自動で開始せずユーザーへ報告します。
 - lockを変更する前に、親の通常ファイルと全サブモジュールに未commit変更がないことを確認します。架空SHAやplaceholderを追加しません。
+- Codex Cloudで `scripts/sync-dev-cloud.sh` により生じた未stageのgitlink差分は同期状態として扱い、明示された親統合タスクでない限りcommitしません。
 - ユーザーの既存変更を、明示的な依頼なしに戻したり上書きしたりしません。関係のないファイルを変更せず、不要なリファクタリングを行いません。
 - 旧ワークスペース `C:\work\00_Docker\matsu` は変更しません。
 
