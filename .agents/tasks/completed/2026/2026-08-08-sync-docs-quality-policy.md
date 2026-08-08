@@ -54,4 +54,4 @@ merge済みのdocs品質ゲート方針を親ワークスペースのgitlinkとd
 - ローカル検証: `scripts/verify-lock.sh development`成功（全8モジュールのHEAD・lock・clean状態が一致）、`git diff --check origin/main...HEAD`成功、`git ls-tree HEAD docs`とdevelopment lockと`origin/develop`のSHA一致、base差分と全サブモジュールのclean状態を確認。自己レビューで指摘なし。
 - 親レビュー: 2026-08-08に承認範囲、docs PR #3のmerge commit、gitlink・lock・`origin/develop`の一致、対象差分、検証記録を確認し、指摘なし。
 - CI委譲: なし
-- Pull Request: 未作成（親レビュー後に公開予定）
+- Pull Request: [matsu-workspace PR #9](https://github.com/shu-matsukubo/matsu-workspace/pull/9)（draft、base `main`）
