@@ -143,14 +143,24 @@ scripts\sync-dev.bat
 
 `sync-dev.sh` は、親にlocal `main` が存在すること、親の通常ファイル・stage済み差分・未追跡ファイルがないこと、現在branchの `.gitmodules` と `modules.dev.conf` がlocal `main` と一致することを確認します。続けて、各モジュールがcleanで、設定された開発branchへ安全に更新できることを事前確認します。すべての確認後に親を `main` へ切り替え、各モジュールを `modules.dev.conf` のbranchへ切り替えて `origin` の最新版までfast-forwardします。親のfetchやfast-forwardは行いません。子モジュールに未commit変更、未push commit、分岐、または想定外branchがある場合も、いずれのbranchも切り替える前に停止します。
 
-Codex Cloudでは、checkoutされた親branchを維持したまま、セットアップとCloud専用同期を順に実行します。
+Codex Cloudでは、新規環境のセットアップとcache maintenanceのどちらにも、checkoutされた親branchを維持するCloud専用entrypointを使用します。
 
 ```sh
-sh scripts/setup.sh
-sh scripts/sync-dev-cloud.sh
+sh scripts/setup-cloud.sh
 ```
 
-`sync-dev-cloud.sh` は `setup.sh` による初期化済み状態を前提とし、親のlocal `main` を要求しません。親のbranch、HEAD、indexには触れず、全モジュールのclean状態、remote branch、現在のcheckout、local開発branchのfast-forward可否を事前確認してから、各モジュールを `origin/<開発branch>` の最新commitへfast-forwardし、nested submoduleを同期します。local-only commit、ahead、分岐、想定外branchがある場合は強制的に破棄せず、いずれのモジュールも切り替える前に停止します。
+`setup-cloud.sh` は `setup.sh`、`sync-dev-cloud.sh`、`install-dependencies.sh` の順に委譲します。最初にサブモジュールを親gitlinkのcommitへ初期化し、次に各モジュールを開発branchへ同期し、最後に品質ゲートに必要な依存関係をインストールします。通常のローカル開発用 `setup.sh` と `sync-dev.sh` の責務は変更しません。
+
+`sync-dev-cloud.sh` は親のlocal `main` を要求しません。親のbranch、HEAD、indexには触れず、全モジュールのclean状態、remote branch、現在のcheckout、local開発branchのfast-forward可否を事前確認してから、各モジュールを `origin/<開発branch>` の最新commitへfast-forwardし、nested submoduleを同期します。local-only commit、ahead、分岐、想定外branchがある場合は強制的に破棄せず、いずれのモジュールも切り替える前に停止します。
+
+`install-dependencies.sh` は `.gitmodules` の初期化済みmoduleを対象に、各moduleのGit管理対象lock fileを検索します。`node_modules` と `vendor` の配下は対象にせず、現在使用している次の組み合わせだけを処理します。
+
+| lock file | 必須manifest | 実行する処理 |
+|---|---|---|
+| `package-lock.json` | 同じdirectoryの `package.json` | `npm ci` |
+| `composer.lock` | 同じdirectoryの `composer.json` | `composer install --no-interaction --prefer-dist` |
+
+対応するlock fileがないmoduleは正常にskipします。manifestまたはinstall commandがない場合やinstallが失敗した場合は、対象module、project directory、処理を表示してその場で停止します。moduleやprojectをscriptへ個別列挙しないため、同じlock file規約を使うmoduleを追加してもCodex Cloud側の設定変更は不要です。
 
 同期後に表示される未stageのgitlink差分は、Cloud作業環境を開発branchの最新へ合わせた意図した状態です。明示された親統合タスクでない限りstageまたはcommitせず、作業対象の変更と分けて扱います。
 
