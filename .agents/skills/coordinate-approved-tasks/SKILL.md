@@ -12,7 +12,7 @@ description: ユーザー承認済みの複数タスクを、依存関係とリ�
 3. Pull Requestのmergeは許可に含めない。ユーザーの明示的な指示なしにmergeしない。
 4. 承認外の改善や追加変更を見つけた場合は、作業へ混ぜず新しいタスクとして記録する。
 5. 各タスクについて、実装を所有するGitリポジトリと `.agents/tasks/active/` の明示pathを確定する。タスクファイルがまだなければ、親ワークスペースの `.agents/tasks/TEMPLATE.md` から作成し、実装前にそのファイルだけをcommitする。
-6. Issue駆動では最新計画のrevisionとhash、未回答質問、前提条件、依存Issue・task・Pull Request、対象CIをGitHubとworkflowから再取得する。計画時点の状態だけで実装を開始しない。
+6. Issue駆動では最新計画のrevisionとhash、source境界のowner comment ID、境界後のowner入力、未回答質問、前提条件、依存Issue・task・Pull Request、対象CIをGitHubとworkflowから再取得する。純粋な実装開始コメントはsource境界を動かさず、要件変更を含む入力は再計画へ戻す。計画時点の状態だけで実装を開始しない。
 
 ## 割り当てる
 
@@ -32,6 +32,7 @@ description: ユーザー承認済みの複数タスクを、依存関係とリ�
 - 子リポジトリの成果を先にreview・公開し、親gitlinkやlockは子Pull Requestのmerge後に扱う。
 - hard dependencyまたはCI結果を同じCodexタスク内でポーリングしない。Issueへ現在状態、先行可能なtask、再開条件とユーザー操作を記録して終了する。
 - Issue駆動の`issue-ci-delegated`では必要なテストコードを実装に含め、`verify-changes`で既存CI coverageを確認する。ローカル未実行のテストを成功扱いにしない。
+- Pull Requestレビューの差し戻し対応では、最新review、未解決thread、inline comment、CI、現在コードを確認し、承認範囲内の修正を同じtask、branch、Pull Requestで続ける。
 
 ## 親レビューを行う
 

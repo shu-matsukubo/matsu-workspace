@@ -1,4 +1,4 @@
 interface:
-  display_name: "Handle GitHub Issue Event"
-  short_description: "Safely route GitHub Issue events to existing skills"
-  default_prompt: "Use $handle-github-issue-event to evaluate this GitHub Issue event and delegate the next approved action safely."
+  display_name: "Handle GitHub Issue Request"
+  short_description: "Route an owner Issue request to existing skills safely"
+  default_prompt: "Use $handle-github-issue-event to evaluate this owner's natural-language GitHub Issue request and delegate the next safe action."

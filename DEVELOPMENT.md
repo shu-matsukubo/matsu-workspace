@@ -74,35 +74,40 @@ GitHubプラグインでremote commitを構築した場合、ローカルとremo
 
 ## GitHub Issue駆動のCodexフロー
 
-親`matsu-workspace`のIssueを依頼と状態管理の正本とします。`.github/workflows/codex-issue-flow.yml`はdefault branchに存在するときだけ`issues.opened`、`issues.labeled`、`issue_comment.created`を処理します。repository owner以外の操作は起動対象にしません。
+親`matsu-workspace`のIssueを依頼と状態管理の正本とします。`.github/workflows/codex-issue-flow.yml`はdefault branchに存在するときだけ`issue_comment.created`と`main`へのpushを処理します。repository ownerがIssueへ投稿した`@codex`付きコメントだけを起動操作として扱い、Issue作成だけでは開始しません。Pull Requestコメントはレビュー内容の正本ですが、フローを起動するcontrol planeにはしません。
 
 ```mermaid
 stateDiagram-v2
-    [*] --> 処理中: ownerがIssue作成
+    [*] --> 処理中: ownerがIssueで@codex計画依頼
     処理中 --> 回答待ち: 作業不能な質問
-    回答待ち --> 処理中: 回答コメント + 回答済
+    回答待ち --> 処理中: ownerが@codex付き回答
     処理中 --> 承認待ち: 最新revisionの計画
-    承認待ち --> 処理中: 差し戻しコメント + 差し戻し
-    承認待ち --> 処理中: 承認
+    承認待ち --> 処理中: ownerが@codex付き差し戻し
+    承認待ち --> 処理中: ownerが@codex付き実装開始指示
     処理中 --> 依存待ち: startを止めるhard dependency
-    依存待ち --> 処理中: 依存完了後に再承認
+    依存待ち --> 処理中: 依存完了後にownerが@codexで再開
     処理中 --> 要判断: 循環・前提変更・CI不足
     処理中 --> PR作成済: draft Pull Request作成
+    PR作成済 --> 処理中: ownerがIssueで@codexレビュー修正依頼
 ```
 
-ユーザーが付ける`Codex:回答済`、`Codex:差し戻し`、`Codex:承認`は一時コマンドです。Actionsが信頼済みdispatchコメントを確認した後に外します。`Codex:処理中`の間に再度付けても二重dispatchせず、ラベルだけを消費します。状態表示ラベルはActionsがCodexの信頼済みresult markerから一つだけ同期します。
+ユーザーは「タスク分解」「質問への回答」「計画の差し戻し」「実装開始」「Pull Requestレビュー修正」を`@codex`付きの自然言語で伝えます。Actionsは自然言語の意味を判定せず、ownerコメントを検知した時点で`Codex:処理中`へ、Codexの信頼済みresult markerを受けた時点で結果に対応する状態ラベル一つだけへ同期します。`Codex:回答済`、`Codex:差し戻し`、`Codex:承認`は廃止し、新workflowが`main`へ反映されたpushで既存ラベル定義を冪等に削除します。
 
-workflowは`contents: read`と`issues: write`だけを持ち、Issue番号単位の`concurrency.queue: max`でイベントを直列化します。Issue本文やコメントをshellへ展開せず、label/prompt対応と冪等性判定を`.github/scripts/codex-issue-flow.cjs`に集約します。同じdispatch keyの再送ではコメントを増やさず、中断した状態ラベルとコマンドラベルをreconcileします。ユーザーがmarkerを偽装してもauthorのlogin、id、typeが一致しないため制御情報として扱いません。
+旧形式markerの計画だけが残る既存Issueでは、その計画を直接実装承認しません。ownerがIssueへ`@codex 最新状態から計画を更新してください`等を投稿し、owner comment IDとsource境界を持つ新形式の計画へ更新してから実装開始を依頼します。
 
-`GITHUB_TOKEN`によるコメントやラベル変更は別のActions runを再帰的に起動しません。Codexの外部Appが返すコメントだけを状態同期の対象にします。secretやpersonal access tokenは追加しません。
+workflowは`contents: read`と`issues: write`だけを持ち、Issue番号単位の`concurrency.queue: max`でイベントを直列化します。Issue本文やコメントをshellへ展開せず、ownerと`@codex`の検証、owner comment IDによる冪等性、result markerとの対応を`.github/scripts/codex-issue-flow.cjs`に集約します。同じownerコメントの再実行では、対応する最新resultがあれば状態をreconcileし、新しいownerコメント後に届いた古いresultで状態を上書きしません。Actionsは起動コメントを投稿しません。ユーザーがmarkerを偽装してもCodex botのlogin、id、typeが一致しないため制御情報として扱いません。
+
+`GITHUB_TOKEN`によるラベル変更は別のActions runを再帰的に起動しません。Codexの外部Appが返すコメントだけを結果状態の同期対象にします。secretやpersonal access tokenは追加しません。
 
 ### Codex側の責務
 
-Issueイベントは`.agents/skills/handle-github-issue-event`で判定します。専用skillはIssue全体と関連対象の現在状態、最新質問・回答・計画revision、承認後の前提変更、依存グラフを確認し、詳細処理を既存の`plan-tasks`、`coordinate-approved-tasks`、`review-changes`、`verify-changes`、`update-documentation`、`publish-task-pr`へ委譲します。
+Issue上の最新owner `@codex`コメントの意図は`.agents/skills/handle-github-issue-event`で`plan`、`answer`、`revise`、`implement`、`review-fix`、`unknown`のいずれかに判定します。専用skillはIssue全体と関連対象の現在状態、最新質問・回答・計画revision、実装開始意思、依存グラフを確認し、詳細処理を既存の`plan-tasks`、`coordinate-approved-tasks`、`review-changes`、`verify-changes`、`update-documentation`、`publish-task-pr`へ委譲します。分類名や定型文をユーザーへ要求しません。
 
-承認前は最新の信頼済み計画コメント、承認後はrepository別task fileを承認範囲と依存関係の正本とします。Pull Request本文はレビュー用投影です。IssueやPull Requestの完了はGitHub上の現在状態で再判定し、closed without mergeをコード依存の完了にしません。
+承認前は最新の信頼済み計画コメント、承認後はrepository別task fileを承認範囲と依存関係の正本とします。計画時のowner comment IDをsource hashの境界としてmarkerへ記録し、純粋な実装開始コメントでは境界を動かしません。境界後のコメントに要件変更が含まれる場合は、hash一致だけで実装せず計画更新と再承認へ戻します。
 
-依存edgeは`hard`、`soft`、`ordering`と、`start`、`complete`、`publish`、`merge`のgateを持ちます。hardだけが指定gate以降を止め、softは独立作業を止めず、orderingは公開・merge順だけを制約します。循環時は全taskを依存待ちにせず、経路、解除候補、先行可能なtaskを報告します。hard dependency待ちやCI待ちではポーリングせず、再開条件と再度付けるコマンドラベルをIssueへ残して終了します。
+Pull RequestフェーズではPull Requestの最新review、未解決thread、inline comment、CI結果、現在コードをレビュー内容の正本とし、Issueをcontrol planeとして維持します。承認範囲内の修正は同じtask・branch・Pull Requestで行い、解決済みまたは現在コードと一致しない古い指摘を再適用しません。IssueやPull Requestの完了はGitHub上の現在状態で再判定し、closed without mergeをコード依存の完了にしません。
+
+依存edgeは`hard`、`soft`、`ordering`と、`start`、`complete`、`publish`、`merge`のgateを持ちます。hardだけが指定gate以降を止め、softは独立作業を止めず、orderingは公開・merge順だけを制約します。循環時は全taskを依存待ちにせず、経路、解除候補、先行可能なtaskを報告します。hard dependency待ちやCI待ちではポーリングせず、再開条件と次に投稿する`@codex`コメントの内容をIssueへ残して終了します。
 
 ### Issue駆動の検証
 
@@ -112,9 +117,9 @@ Issueイベントは`.agents/skills/handle-github-issue-event`で判定します
 
 ### default branch反映後の受け入れ試験
 
-workflow追加Pull Requestを`main`へmergeした後、repository ownerが専用の試験Issueを作成します。Actions run、Actionsが`GITHUB_TOKEN`で投稿した信頼済み`@codex`コメント、実際のCodexタスク起動、Codex resultコメント、状態ラベル同期を順に確認します。続けて回答済、差し戻し、承認、依存待ちからの再承認、soft dependency、直接・間接循環、Pull Request状態、同一イベント再実行、処理中の再承認、owner以外の操作を試験し、最後に試験Issueをcloseします。
+workflow変更Pull Requestを`main`へmergeした後、旧コマンドラベルが削除され、6つの状態ラベルが存在することを確認します。repository ownerが専用の試験Issueを作成し、`@codex タスク分解お願いします`を投稿して、Codexタスク起動、`Codex:処理中`、Codex resultコメント、結果状態への同期を順に確認します。
 
-Actions投稿の`@codex`からCodexが起動しない場合は、推測でtokenを追加しません。Actions commentのauthor、Codex Appのinstallation/mention権限、repository設定、run logを確認し、原因と安全な代替（ownerによる手動`@codex`コメントなど）を報告します。この実地試験はdefault branch反映前には完了扱いにしません。
+続けて自然言語による回答、差し戻し、明確な実装開始、要件変更を含む実装指示、依存待ちからの再開、soft dependency、直接・間接循環、Pull Requestレビュー差し戻し、同一コメントのActions再実行、古いresult、owner以外・Actions bot・未知botのメンションを試験し、最後に試験Issueをcloseします。Actions botからCodexをメンションする経路や追加tokenは導入しません。この実地試験はdefault branch反映前には完了扱いにしません。
 
 ## 1. 開発開始
 
