@@ -53,5 +53,5 @@ Codex Cloudの新規環境とキャッシュ再開環境を、リポジトリ管
 - 変更内容: `setup.sh`、`sync-dev-cloud.sh`、`install-dependencies.sh` へ順に委譲する `setup-cloud.sh` と、Git管理対象の `package-lock.json`／`composer.lock` から依存関係を再現する `install-dependencies.sh` を追加した。Cloudのsetup／maintenanceコマンドとlock file規約を `README.md`、`DEVELOPMENT.md` へ記録した。
 - ローカル検証: `sh -n scripts/setup.sh scripts/sync-dev.sh scripts/sync-dev-cloud.sh scripts/install-dependencies.sh scripts/setup-cloud.sh` に成功した。local bare remoteを使うisolated fixtureで、local `main` なしのwork branchにおけるsetup→sync→installの委譲順、親branch・HEAD・indexの不変、全moduleの `origin/develop` 一致、Git管理対象lock fileだけの検出、`node_modules`／`vendor`／未追跡lockの除外、lockなしskip、manifest・command不足とinstall失敗のfail-fastを確認した。親レビューではfake `npm`／`composer` により、現行4 Node projectと1 Composer projectの実行directory・引数、および3 moduleのskipを再確認した。Frontendで `npm run check` と `npm run build`、親で `git diff --check`、対象外ファイル・gitlink・lock差分なし、全module cleanを確認した。ShellCheckは環境に未導入のため未実施。実remoteを使うdesktop E2EはGitのhost key確認ダイアログが発生した時点で中止し、認証を進めずisolated fixtureで代替した。
 - CI委譲: なし
-- Pull Request: `main` 向けdraft Pull Requestを作成予定
+- Pull Request: `main` 向けdraft Pull Request [#16](https://github.com/shu-matsukubo/matsu-workspace/pull/16) を作成した
 - 残るリスク: desktopから実remoteを使う `setup-cloud.sh` の完走は、対話的なGit認証を避けるため未確認。Codex Cloud上の実行はPull Request反映後に環境setup／maintenanceから確認する必要がある。
