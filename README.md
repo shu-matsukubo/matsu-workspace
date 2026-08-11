@@ -36,14 +36,13 @@ Windowsでは `scripts\sync-dev.bat` から同じ処理を実行できます。
 
 親ではlocal `main` の存在と、現在branchの `.gitmodules` および `modules.dev.conf` がlocal `main` と一致することを確認してから `main` へ切り替えます。親のfetchやfast-forwardは行いません。子モジュールに未commit変更、未push commit、分岐、または想定外branchがある場合もbranch切替前に停止します。
 
-Codex Cloudでは、環境セットアップに次を指定します。
+Codex Cloudでは、新規環境のセットアップとcache maintenanceのどちらにも次の単一コマンドを指定します。
 
 ```sh
-sh scripts/setup.sh
-sh scripts/sync-dev-cloud.sh
+sh scripts/setup-cloud.sh
 ```
 
-`sync-dev-cloud.sh` は親のlocal `main` を要求せず、親のbranch、HEAD、indexを変更しません。初期化済みの各モジュールがcleanで、local-only commit、分岐、または想定外branchがないことを全件確認してから、`modules.dev.conf` の開発branchへ切り替え、`origin` の最新版までfast-forwardします。nested submoduleも同期します。親gitlinkとの差分はCloud作業環境を開発branchの最新へ合わせた意図した状態であり、明示された親統合タスクでない限りcommitしません。
+`setup-cloud.sh` はサブモジュールの初期化、Cloud専用の開発branch同期、Git管理対象lock fileに基づく依存関係インストールを順に行います。親のlocal `main` を要求せず、親のcheckoutも変更しません。親gitlinkとの差分はCloud作業環境を開発branchの最新へ合わせた意図した状態であり、明示された親統合タスクでない限りcommitしません。詳細は [DEVELOPMENT.md](DEVELOPMENT.md#1-開発開始) を確認してください。
 
 ## 開発環境の起動
 
