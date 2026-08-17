@@ -18,6 +18,7 @@ const STATE_LABELS = Object.freeze([
   'Codex:承認待ち',
   'Codex:依存待ち',
   'Codex:要判断',
+  'Codex:子タスク確認待ち',
   'Codex:PR作成済',
 ]);
 
@@ -27,6 +28,7 @@ const LABEL_SPECS = Object.freeze([
   ['Codex:承認待ち', 'c2e0c6', 'Actions管理: 最新計画の承認待ち'],
   ['Codex:依存待ち', 'f9d0c4', 'Actions管理: hard dependencyの完了待ち'],
   ['Codex:要判断', 'b60205', 'Actions管理: 循環・前提変更・安全性の判断待ち'],
+  ['Codex:子タスク確認待ち', '1d76db', 'Actions管理: 配送済みchild Issueのユーザー確認待ち'],
   ['Codex:PR作成済', '0e8a16', 'Actions管理: draft Pull Request作成済み'],
 ].map(([name, color, description]) => Object.freeze({ name, color, description })));
 
@@ -38,6 +40,7 @@ const STATE_FROM_RESULT = Object.freeze({
   'dependency-cycle': 'Codex:要判断',
   blocked: 'Codex:要判断',
   error: 'Codex:要判断',
+  'tasks-dispatched': 'Codex:処理中',
   'pr-created': 'Codex:PR作成済',
 });
 
@@ -64,7 +67,7 @@ function isTrustedOwnerCommand(comment, repositoryOwner) {
 }
 
 function resultMarker(body) {
-  const pattern = /<!-- codex-issue-flow state=(processing|question|plan|dependency-wait|dependency-cycle|blocked|error|pr-created) revision=(\d+) handled-owner-comment-id=(\d+)(?: source-owner-comment-id=(\d+))?(?: source-sha256=([a-f0-9]{64}))?(?: plan-sha256=([a-f0-9]{64}))? -->/g;
+  const pattern = /<!-- codex-issue-flow state=(processing|question|plan|dependency-wait|dependency-cycle|blocked|error|tasks-dispatched|pr-created) revision=(\d+) handled-owner-comment-id=(\d+)(?: source-owner-comment-id=(\d+))?(?: source-sha256=([a-f0-9]{64}))?(?: plan-sha256=([a-f0-9]{64}))? -->/g;
   let match;
   let last = null;
   while ((match = pattern.exec(body || '')) !== null) {
@@ -183,6 +186,12 @@ async function replaceStateLabel(github, owner, repo, issueNumber, nextState) {
   }
 }
 
+async function synchronizeIssueState(github, owner, repo, issueNumber, nextState) {
+  if (!STATE_LABELS.includes(nextState)) throw new Error(`未知のCodex state labelです: ${nextState}`);
+  await ensureLabels(github, owner, repo);
+  await replaceStateLabel(github, owner, repo, issueNumber, nextState);
+}
+
 function commentsIncludingPayload(listed, payloadComment) {
   return listed.some((comment) => comment.id === payloadComment.id)
     ? listed
@@ -207,6 +216,9 @@ async function handleOwnerCommand({ github, context, core }) {
   }
 
   const result = latestTrustedResult(comments, payload.comment.id, payload.repository.owner);
+  if (result && result.marker.state === 'tasks-dispatched') {
+    return core.info('Child Task Dispatcherが配送結果に基づいて親Issue stateを確定します。');
+  }
   const state = result ? STATE_FROM_RESULT[result.marker.state] : 'Codex:処理中';
   await replaceStateLabel(github, owner, repo, issueNumber, state);
 }
@@ -240,6 +252,10 @@ async function handleStateSync({ github, context, core }) {
     return core.info('同じowner comment IDの最新Codex resultではないため状態を変更しません。');
   }
 
+  if (marker.state === 'tasks-dispatched') {
+    return core.info('Child Task Dispatcherが配送結果に基づいて親Issue stateを確定します。');
+  }
+
   await ensureLabels(github, owner, repo);
   await replaceStateLabel(github, owner, repo, issueNumber, STATE_FROM_RESULT[marker.state]);
 }
@@ -270,6 +286,7 @@ module.exports = {
   STATE_LABELS,
   compareOrdinal,
   containsCodexMention,
+  hasTrustedSourceBoundary,
   isRepositoryOwnerComment,
   isTrustedCodexComment,
   isTrustedOwnerCommand,
@@ -278,4 +295,5 @@ module.exports = {
   latestTrustedResult,
   resultMarker,
   run,
+  synchronizeIssueState,
 };
