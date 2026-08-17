@@ -72,6 +72,12 @@ GitHubプラグインでremote commitを構築した場合、ローカルとremo
 
 プラグインが利用できない、またはファイル種別やremote状態を安全に表現できない場合だけ、forceを付けない `git push` をfallbackとして試します。そのプロセスには `GIT_TERMINAL_PROMPT=0` と `GCM_INTERACTIVE=Never` を設定し、新しい対話認証を開始させません。pushで認証に失敗した場合は、browser login、device login、credential保存を自動で開始しません。remote branchを公開するための認証が必要であることをユーザーへ説明し、認証または手動pushを依頼して停止します。プラグインが既にremote branchを変更した後は、自動でpushへ切り替えず、remote状態を確認してから扱います。
 
+### リポジトリ間Issue作成の疎通確認
+
+`.github/workflows/test-cross-repo-issue.yml` は、`main` へmergeした後にActions画面から手動実行し、`shu-matsukubo/matsu-front` へ検証用Issueを1件作成します。実行前にrepositoryのActions Secretとして `CROSS_REPO_ISSUE_TOKEN` を設定してください。Secret値をリポジトリ内へ保存しません。
+
+Secretには、resource ownerを `shu-matsukubo`、repository accessを `matsu-front` のみに限定したfine-grained Personal Access Tokenを使用します。Repository permissionsは `Issues: Read and write` と、GitHubが必須で付与する `Metadata: Read-only` だけとし、`Contents`、`Pull requests` などその他の権限は付与しません。workflow自身の `GITHUB_TOKEN` 権限は空です。
+
 ## GitHub Issue駆動のCodexフロー
 
 親`matsu-workspace`のIssueを依頼と状態管理の正本とします。`.github/workflows/codex-issue-flow.yml`はdefault branchに存在するときだけ`issue_comment.created`と`main`へのpushを処理します。repository ownerがIssueへ投稿した`@codex`付きコメントだけを起動操作として扱い、Issue作成だけでは開始しません。Pull Requestコメントはレビュー内容の正本ですが、フローを起動するcontrol planeにはしません。
