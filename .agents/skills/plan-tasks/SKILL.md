@@ -21,6 +21,9 @@ description: 変更作業を始める前に、要件をレビュー可能な単�
 - 不明点が結果を大きく変える場合は確認事項にする。現状から確定できる内容を質問しない。
 - 依存タスクは着手可否を決める制約として整理し、着手可能なタスクの優先度を `high`、`normal`、`low` から選ぶ。明確な理由がなければ `normal` とする。
 - Issue駆動では最新計画コメントを承認前の正本とし、revision、comment URL、plan SHA-256、source SHA-256、source境界のowner comment IDを付ける。過去の計画や単なる実装開始コメントを承認対象にしない。
+- 各taskへ一意なkey、title、repository、work、agent strategy、completion、dependencies、parent Issue、approved plan、concernsを付ける。priority、verification mode、out-of-scopeも必要に応じて明示し、計画、dispatch、child Issue、task fileを同じ承認内容のprojectionとして扱う。
+- agent strategyは、軽量で明確な変更に`parent-only`、通常は`worker-parent-review`、高リスク・大規模・境界が複雑な変更だけに`worker-reviewer-parent`を選ぶ。どの方式でも実装担当はself reviewし、親agentがいる方式では親がdiffと検証結果を直接確認する。
+- documentation modeは通常taskの`follow-up-only`を既定とし、ユーザーが文書本文の更新をtaskへ明示的に含めた場合だけ`explicit-update`とする。`explicit-update`でも承認されたwork、out-of-scope、completionを越えて文書範囲を広げない。
 - 依存関係ごとに対象、`hard`・`soft`・`ordering`、`start`・`complete`・`publish`・`merge`のgate、完了条件、現在状態の根拠を記録する。softは着手禁止にせず、orderingは実装開始ではなく公開・merge順だけを制約する。
 - 計画時に現在状態から依存グラフを構築し、自己依存、直接・間接循環、Issue・task・Pull Request・child change・parent gitlink/lockをまたぐ循環を検査する。循環時は全taskを依存待ちにせず、経路、解消案、先行可能なtask、必要なユーザー判断を示す。
 
@@ -35,10 +38,14 @@ description: 変更作業を始める前に、要件をレビュー可能な単�
 - 依存対象（Issue、task、Pull Request、child change、parent gitlink・lock）
 - 依存関係の種類、gate、完了条件、現在状態の根拠
 - 想定される懸念事項
+- agent strategy
+- 親Issueと承認対象のrevision、plan/source SHA-256、source境界owner comment ID（通常承認では会話内の承認識別情報）
 - ユーザーへ確認したい事項（必要な場合のみ）
 
 推奨案がある確認事項は、推奨する選択肢と理由を明記する。タスク一覧、想定ディレクトリ構成、文書ごとの責務、横断的な懸念点をまとめ、変更を開始せずユーザーの承認を待つ。
 
 ## 承認範囲を固定する
 
-承認されたタスクID、選択された確認事項、対象リポジトリ、明示的に除外された内容を固定する。Issue駆動では承認対象のrevision、comment URL、plan/source SHA-256、source境界のowner comment IDも固定し、実装開始直前に未回答質問、境界後のowner入力、前提変更、依存対象とCIの現在状態を再取得する。純粋な実装開始コメントはsource境界を動かさず、要件変更を含む場合は実装せず再計画へ戻す。承認後は対象リポジトリと `YYYY-MM-DD-<short-kebab-case-summary>.md` のファイル名を実装担当へ引き継ぎ、実装前に承認内容をactiveタスクファイルとしてcommitさせる。以後の実装判断はこの記録を基準にし、承認外の変更が必要になった場合は新しいタスクとして提示する。
+承認されたタスクID、選択された確認事項、対象リポジトリ、agent strategy、明示的に除外された内容を固定する。Issue駆動では承認対象のrevision、comment URL、plan/source SHA-256、source境界のowner comment IDも固定し、dispatch直前に未回答質問、境界後のowner入力、前提変更、依存対象とCIの現在状態を再取得する。純粋な承認コメントはsource境界を動かさず、要件変更を含む場合はdispatchせず再計画へ戻す。
+
+Cloudの親Issueでは承認後に対象repositoryを実装せず、承認済みtaskを変更しないversioned dispatch blockへ変換してGitHub Actionsへ渡す。child Issueが人間に確認され明示起動された後、そのexecution packetから対象repositoryのactive task fileを実施記録として生成する。Issueを経由しないLocal実行では、対象リポジトリと `YYYY-MM-DD-<short-kebab-case-summary>.md` のファイル名を実装担当へ引き継ぎ、実装前に承認内容をactive task fileとしてcommitさせる。いずれもtask fileへ第二の承認内容を作らず、承認外の変更が必要なら新しいタスクとして提示する。

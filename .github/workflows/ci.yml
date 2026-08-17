@@ -22,12 +22,14 @@ jobs:
       - name: Check JavaScript syntax
         run: |
           node --check .github/scripts/codex-issue-flow.cjs
+          node --check .github/scripts/child-task-dispatcher.cjs
           node --check .agents/skills/handle-github-issue-event/scripts/analyze-dependencies.mjs
 
       - name: Run Issue flow unit tests
         run: >-
           node --test
           .github/scripts/codex-issue-flow.test.cjs
+          .github/scripts/child-task-dispatcher.test.cjs
           .agents/skills/handle-github-issue-event/scripts/analyze-dependencies.test.mjs
           .agents/skills/handle-github-issue-event/scripts/hash-issue-state.test.mjs
 

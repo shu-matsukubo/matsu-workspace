@@ -99,6 +99,15 @@ test('question may omit plan hash and error may omit source data', () => {
   assert.equal(flow.isValidResultMarker(flow.resultMarker(marker({ state: 'plan', planHash: null }))), false);
 });
 
+test('tasks-dispatched is a strict result state with an approved plan identity', () => {
+  const parsed = flow.resultMarker(marker({ state: 'tasks-dispatched', revision: 2 }));
+  assert.equal(flow.isValidResultMarker(parsed), true);
+  assert.equal(flow.STATE_FROM_RESULT['tasks-dispatched'], 'Codex:処理中');
+  assert.equal(flow.isValidResultMarker(flow.resultMarker(marker({
+    state: 'tasks-dispatched', revision: 2, planHash: null,
+  }))), false);
+});
+
 test('owner @codex comment changes state to processing without creating a bot mention', async () => {
   const p = payload();
   const github = fakeGithub([p.comment], ['Codex:承認待ち']);
@@ -251,6 +260,21 @@ test('valid latest result replaces every current state label with one state', as
   assert.deepEqual(github.calls.addLabels.map((call) => call.labels), [['Codex:承認待ち']]);
 });
 
+test('tasks-dispatched result defers final state to Child Task Dispatcher', async () => {
+  const ownerCommand = payload().comment;
+  const result = {
+    id: 101,
+    created_at: '2026-08-06T00:02:00Z',
+    body: marker({ state: 'tasks-dispatched', revision: 2 }),
+    user: { ...flow.CODEX_BOT },
+  };
+  const p = payload(result, { sender: result.user });
+  const github = fakeGithub([ownerCommand, result], ['Codex:処理中']);
+  await flow.run({ github, core, context: context(p) });
+  assert.deepEqual(github.calls.removeLabel, []);
+  assert.deepEqual(github.calls.addLabels, []);
+});
+
 test('default branch push removes legacy command labels and preserves status definitions', async () => {
   const github = fakeGithub();
   await flow.run({ github, core, context: context({ repository: payload().repository }, 'push') });
@@ -278,8 +302,8 @@ test('repository skill metadata is complete and references its protocol on any n
   const metadata = fs.readFileSync(path.join(skillRoot, 'agents', 'openai.yaml'), 'utf8');
   assert.match(skill, /^---\s*\nname: handle-github-issue-event\s*\ndescription: .+\n---/);
   assert.match(skill, /references\/issue-protocol\.md/);
-  assert.match(skill, /`plan`[\s\S]*`answer`[\s\S]*`revise`[\s\S]*`implement`[\s\S]*`review-fix`[\s\S]*`unknown`/);
-  assert.match(skill, /実装開始指示に要件変更が含まれれば`revise`/);
+  assert.match(skill, /`plan`[\s\S]*`answer`[\s\S]*`revise`[\s\S]*`dispatch`[\s\S]*`review-fix`[\s\S]*`unknown`/);
+  assert.match(skill, /承認指示に要件変更が含まれれば`revise`/);
   assert.doesNotMatch(skill, /TODO/);
   assert.match(metadata, /default_prompt: ".*\$handle-github-issue-event/);
 });
@@ -291,11 +315,30 @@ test('protocol defines safe result states and task template preserves the source
   ), 'utf8').replace(/\r\n?/g, '\n');
   const taskTemplate = fs.readFileSync(path.join(repositoryRoot, '.agents', 'tasks', 'TEMPLATE.md'), 'utf8')
     .replace(/\r\n?/g, '\n');
+  const skill = fs.readFileSync(path.join(
+    repositoryRoot, '.agents', 'skills', 'handle-github-issue-event', 'SKILL.md',
+  ), 'utf8').replace(/\r\n?/g, '\n');
   assert.match(protocol, /`error`だけは`revision=0`を許可/);
   assert.match(protocol, /ユーザー確認を返す結果は`state=question`/);
   assert.match(protocol, /修正と再検証が成功[\s\S]*`state=pr-created`/);
   assert.match(protocol, /handled commentより後の境界を持つresultは同期しない/);
+  assert.match(protocol, /`state=tasks-dispatched`/);
+  assert.match(protocol, /1 task block = 1 child Issue/);
+  assert.match(protocol, /plan comment < handled owner approval comment < dispatch comment/);
+  assert.match(protocol, /block外の文字列、未認識version、marker typo/);
+  assert.match(protocol, /Pull Requestは除外/);
+  assert.match(protocol, /全taskを失敗として親tracking commentへupsert/);
+  assert.match(protocol, /user\.login=shu-matsukubo/);
+  assert.match(protocol, /generic failure commentを冪等にupsert/);
+  assert.match(protocol, /`follow-up-only`または`explicit-update`/);
+  assert.match(protocol, /state label同期の直前に全コメントを再取得/);
+  assert.match(skill, /明示承認した場合だけ`explicit-update`/);
   assert.match(taskTemplate, /承認時source境界owner comment ID:/);
+  assert.match(taskTemplate, /タスクキー:/);
+  assert.match(taskTemplate, /agent strategy:/);
+  assert.match(taskTemplate, /documentation mode:/);
+  assert.match(taskTemplate, /`concerns`、`documentation mode`を同じ承認内容のprojection/);
+  assert.match(taskTemplate, /## 懸念事項/);
 });
 
 test('comment chronology uses ordinal ordering without localeCompare', () => {

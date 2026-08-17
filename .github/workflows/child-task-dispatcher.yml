@@ -1,0 +1,127 @@
+name: Child Task Dispatcher
+
+on:
+  issue_comment:
+    types:
+      - created
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: child-task-dispatch-${{ github.repository_id }}-${{ github.event.issue.number }}
+
+jobs:
+  dispatch:
+    if: >-
+      github.repository == 'shu-matsukubo/matsu-workspace' &&
+      github.event.issue.pull_request == null
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout default branch dispatcher
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+
+      - name: Validate parent event and approved plan
+        id: prepare
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
+        with:
+          github-token: ${{ github.token }}
+          script: |
+            const dispatcher = require('./.github/scripts/child-task-dispatcher.cjs');
+            core.setOutput('prepare-failed', 'false');
+            try {
+              const prepared = await dispatcher.prepareDispatch({ github, context, core });
+              core.setOutput('eligible', prepared ? 'true' : 'false');
+              if (prepared) core.setOutput('prepared', JSON.stringify(prepared));
+            } catch {
+              core.setOutput('eligible', 'false');
+              core.setOutput('prepare-failed', 'true');
+              core.setFailed('Child task dispatch validation failed.');
+            }
+
+      - name: Check cross-repository token configuration
+        if: steps.prepare.outputs.eligible == 'true'
+        id: token
+        env:
+          CROSS_REPO_ISSUE_TOKEN: ${{ secrets.CROSS_REPO_ISSUE_TOKEN }}
+        run: |
+          if [ -n "${CROSS_REPO_ISSUE_TOKEN:-}" ]; then
+            echo "configured=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "configured=false" >> "${GITHUB_OUTPUT}"
+          fi
+
+      - name: Create or reuse child Issues
+        if: >-
+          steps.prepare.outputs.eligible == 'true' &&
+          steps.token.outputs.configured == 'true'
+        id: dispatch
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
+        env:
+          PREPARED_DISPATCH: ${{ steps.prepare.outputs.prepared }}
+          CROSS_REPO_ISSUE_TOKEN: ${{ secrets.CROSS_REPO_ISSUE_TOKEN }}
+        with:
+          github-token: ${{ secrets.CROSS_REPO_ISSUE_TOKEN }}
+          script: |
+            const dispatcher = require('./.github/scripts/child-task-dispatcher.cjs');
+            dispatcher.requireCrossRepoToken(process.env.CROSS_REPO_ISSUE_TOKEN);
+            const prepared = JSON.parse(process.env.PREPARED_DISPATCH);
+            const result = await dispatcher.dispatchPrepared({ github, prepared, core });
+            core.setOutput('dispatch-result', JSON.stringify(result));
+            if (result.failures.length) {
+              core.setFailed(`${result.failures.length}件のchild task配送に失敗しました。`);
+            }
+
+      - name: Record missing token failures
+        if: >-
+          steps.prepare.outputs.eligible == 'true' &&
+          steps.token.outputs.configured != 'true'
+        id: missing-token
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
+        env:
+          PREPARED_DISPATCH: ${{ steps.prepare.outputs.prepared }}
+        with:
+          github-token: ${{ github.token }}
+          script: |
+            const dispatcher = require('./.github/scripts/child-task-dispatcher.cjs');
+            const prepared = JSON.parse(process.env.PREPARED_DISPATCH);
+            const result = dispatcher.missingTokenDispatchResult(prepared);
+            core.setOutput('dispatch-result', JSON.stringify(result));
+            core.setFailed('Actions Secret CROSS_REPO_ISSUE_TOKEN is not configured.');
+
+      - name: Create or update parent tracking comment
+        if: >-
+          always() &&
+          steps.prepare.outputs.eligible == 'true' &&
+          (steps.dispatch.outputs.dispatch-result != '' ||
+          steps.missing-token.outputs.dispatch-result != '')
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
+        env:
+          PREPARED_DISPATCH: ${{ steps.prepare.outputs.prepared }}
+          DISPATCH_RESULT: ${{ steps.dispatch.outputs.dispatch-result || steps.missing-token.outputs.dispatch-result }}
+        with:
+          github-token: ${{ github.token }}
+          script: |
+            const dispatcher = require('./.github/scripts/child-task-dispatcher.cjs');
+            const prepared = JSON.parse(process.env.PREPARED_DISPATCH);
+            const result = JSON.parse(process.env.DISPATCH_RESULT);
+            await dispatcher.upsertTrackingComment({ github, prepared, result, context, core });
+
+      - name: Record dispatch validation failure on parent
+        if: >-
+          always() &&
+          steps.prepare.outputs.prepare-failed == 'true'
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
+        with:
+          github-token: ${{ github.token }}
+          script: |
+            const dispatcher = require('./.github/scripts/child-task-dispatcher.cjs');
+            try {
+              await dispatcher.upsertPreparationFailure({ github, context, core });
+            } catch {
+              core.setFailed('Failed to record child task dispatch validation failure.');
+            }

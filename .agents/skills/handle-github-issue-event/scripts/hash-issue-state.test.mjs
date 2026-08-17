@@ -25,7 +25,7 @@ test('state/control label and volatile timestamps do not change source hash', ()
   const first = fixture();
   const second = fixture();
   second.issue.updatedAt = '2026-08-06T10:00:00Z';
-  second.labels = ['Codex:承認待ち', 'feature'];
+  second.labels = ['Codex:子タスク確認待ち', 'feature'];
   second.ownerComments[0].updatedAt = 'another timestamp';
   second.dependencies[0].retrievedAt = 'another retrieval';
   assert.equal(sourceHash(first), sourceHash(second));

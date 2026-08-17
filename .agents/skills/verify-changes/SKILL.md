@@ -13,12 +13,14 @@ description: 変更内容と対象リポジトリに応じた最小十分な品�
 4. コードや設定の変更では、format、lint・静的解析、型チェック、対象テスト、buildを影響に比例して選ぶ。
 5. OpenAPIや生成型を変更した場合は、再生成とGit管理中の生成物の一致を確認する。
 6. 検証モードを`normal`または`issue-ci-delegated`として明示する。通常実行では従来どおり必要な品質ゲートを実行する。
+7. 通常実装taskでdocumentation影響がある場合は本文を変更せず、`documentation follow-up required`の対象と理由が実施結果へ記録されていることを確認する。
 
 ## Issue駆動のCI委譲を判定する
 
 - `issue-ci-delegated`では必要なテストコードを追加・更新し、対象repositoryの既存workflowが変更責務のtest、lint・静的解析、buildを確実に実行することをファイルとjob単位で確認する。
 - テストスイート本体をローカル実行しない場合は「未実行・CI委譲中」と記録する。未実行を成功扱いにしない。
 - `git diff --check`、差分確認、YAML・設定構文など安全で軽量な検証は必要に応じて実行する。
+- Issue flowまたはChild Task Dispatcherを変更した場合は、対応するNode.js syntax checkとunit test、dependency/hash tests、workflow YAMLの構文確認を既存CI coverageと同じ組み合わせで実行する。trusted author、厳格schema、allowlist、冪等性、partial rerun、dependency保持、secret未設定を回帰対象に含める。
 - コード変更を覆うCIが存在しない、またはcoverageを確定できない場合は実装前の確認事項として止める。文書だけの変更は、軽量検証と残るリスクを明示できる。
 - CI結果を同じCodexタスク内でポーリングしない。失敗後の修正と再検証は同じtask、branch、Pull Requestで扱う。
 

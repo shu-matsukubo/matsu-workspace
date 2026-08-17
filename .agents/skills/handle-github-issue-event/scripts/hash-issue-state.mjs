@@ -11,7 +11,7 @@ const LEGACY_COMMAND_LABELS = [
 
 const STATE_LABELS = [
   'Codex:処理中', 'Codex:回答待ち', 'Codex:承認待ち',
-  'Codex:依存待ち', 'Codex:要判断', 'Codex:PR作成済',
+  'Codex:依存待ち', 'Codex:要判断', 'Codex:子タスク確認待ち', 'Codex:PR作成済',
 ];
 
 const CONTROL_LABELS = new Set([...LEGACY_COMMAND_LABELS, ...STATE_LABELS]);
