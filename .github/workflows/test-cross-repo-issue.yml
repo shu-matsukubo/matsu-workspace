@@ -1,0 +1,41 @@
+name: Cross-repository Issue Creation Test
+
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  create-issue:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate cross-repository token
+        env:
+          GH_TOKEN: ${{ secrets.CROSS_REPO_ISSUE_TOKEN }}
+        run: |
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "::error::Actions Secret CROSS_REPO_ISSUE_TOKEN is not configured." >&2
+            exit 1
+          fi
+
+      - name: Create test Issue in matsu-front
+        env:
+          GH_TOKEN: ${{ secrets.CROSS_REPO_ISSUE_TOKEN }}
+          ISSUE_TITLE: GitHub Actionsからのリポジトリ間Issue作成テスト
+          ISSUE_BODY: |
+            matsu-workspace の GitHub Actions から作成した疎通確認用Issueです。
+
+            Source:
+            shu-matsukubo/matsu-workspace
+
+            Purpose:
+            GitHub Actionsから別repositoryへIssueを作成できるか確認するための検証です。
+        run: |
+          gh api \
+            --method POST \
+            --header "Accept: application/vnd.github+json" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            repos/shu-matsukubo/matsu-front/issues \
+            --raw-field "title=${ISSUE_TITLE}" \
+            --raw-field "body=${ISSUE_BODY}" \
+            --jq '.html_url'
