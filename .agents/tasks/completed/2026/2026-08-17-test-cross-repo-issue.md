@@ -64,6 +64,6 @@
 - 変更内容: `workflow_dispatch` 専用の検証workflowを追加し、専用Secretによる `matsu-front` への単一Issue作成、Secret未設定時の事前失敗、空の `GITHUB_TOKEN` 権限を実装した。`DEVELOPMENT.md` にSecret、fine-grained PATの対象repositoryと最小権限、merge後の手動実行手順を記載した。
 - ローカル検証: actionlint v1.7.12、既存Node構文確認2件、Nodeテスト47件、Secret未設定分岐、対象repositoryとwrite操作の静的確認、`git diff --check` がすべて成功した。親レビューも指摘なしで完了した。
 - CI委譲: なし
-- Pull Request: 未作成（`main` 向けdraft Pull Requestを作成予定）
+- Pull Request: `main` 向けdraft Pull Request [#18](https://github.com/shu-matsukubo/matsu-workspace/pull/18) を作成した
 - 実地確認: 実Issueは作成していない。`main` へのmerge後、ユーザーがActions画面から手動実行する。
 - 残るリスク: fine-grained Personal Access Tokenを使った実際のcross-repository疎通は未実施であり、merge後の手動実行で確認する。
