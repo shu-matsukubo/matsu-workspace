@@ -89,6 +89,6 @@
 
 - 変更内容: version 1の厳格なJSON dispatch block、8 repository allowlist、承認時系列・plan identity検証、owner作成Issueのdispatch markerによる冪等再利用、partial failure、token未設定・prepare失敗の親tracking、stale runのstate上書き防止を備えたChild Task Dispatcherを追加した。既存Issue Flowへ`tasks-dispatched`と`Codex:子タスク確認待ち`を連携し、task schema、Cloud / Local公開、agent strategy、dependency、documentation modeをAGENTS、skills、protocol、templateへ反映した。
 - ローカル検証: `node --check` 4ファイル成功。Issue Flow、dispatcher、dependency、hashの統合Node testは82/82成功。workflow raw-text test、skill metadata test、`git diff --check`、新規3ファイルの末尾空白検査、対象外ファイル不変確認に成功。専用YAML parser / actionlintはローカル環境にないため未実施で、workflowの目視確認とraw-text unit test、追加したCI coverageで代替した。
-- CI委譲: なし。`.github/workflows/ci.yml`へdispatcherのsyntax checkとunit testを追加したが、本taskではremoteへ公開せずCI結果待ちも行っていない。
+- CI委譲: なし。`.github/workflows/ci.yml`へdispatcherのsyntax checkとunit testを追加した。draft Pull Requestは公開済みだが、同一Codex task内でCI結果をポーリングしていない。
 - documentation follow-up: README、DEVELOPMENTの旧Issueフロー説明をCloud / Local分離へ更新する。`CROSS_REPO_ISSUE_TOKEN`をallowlist 8 repositoryの`Issues: Read and write`へ設定する運用を記載する。本番dispatcherのdefault branch反映・実地確認後にPoC workflow削除を別taskで判断する。
-- Pull Request: 未作成。Cloud方針に従いpushとremote publishを試行せず、Codex Web UIからの公開へ委譲する。
+- Pull Request: [#19 GitHub Issue駆動フローをCloud / Local両対応へ再設計する](https://github.com/shu-matsukubo/matsu-workspace/pull/19)（draft、base `main`）。Local方針に従いGitHub pluginで公開し、local git pushは使用していない。
