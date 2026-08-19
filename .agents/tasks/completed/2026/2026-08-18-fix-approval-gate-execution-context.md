@@ -1,7 +1,7 @@
 # 承認ゲートと実行コンテキストを整理する
 
 - 状態: completed
-- 完了日時: 2026-08-18
+- 完了日時: 2026-08-19
 - タスクキー: `T1`
 - 優先度: high
 - 対象リポジトリ: `matsu-workspace`
@@ -68,7 +68,7 @@
 - [x] 指定された承認モデル、Local prompt、execution context、publication modeのunit testが追加・更新される。
 - [x] 既存Issue flow、dispatcher、dependency logicの回帰テストが成功する。
 - [x] self review、独立review、親reviewと必要な検証が完了する。
-- [ ] Local方針に従いGitHub pluginでbranchを公開し、`main`向けdraft Pull Requestを作成する。
+- [x] Local方針に従いGitHub pluginでbranchを公開し、`main`向けdraft Pull Requestを作成する。
 
 ## 実施結果
 
@@ -77,6 +77,6 @@
 - CI委譲: draft Pull Request公開後のGitHub Actionsにworkflow YAML解釈と同じ91 testを委譲する。結果はこのtask内でポーリングせず、現時点では成功扱いにしない。
 - documentation follow-up: なし。承認範囲内の運用正本（`AGENTS.md`、task template、skills、Issue protocol）を更新済みで、README・DEVELOPMENT・`docs`本文への影響はない。
 - agent実行結果: `worker-reviewer-parent`を使用。workerが実装・self review・検証を完了し、独立reviewerがLocal fallbackの完遂capability不足とその回帰テスト不足を指摘した。local pushとPull Request writeの両capabilityを必須化し、Cloud/unknownの全remote capability非探索とpush-only・PR-write-onlyを追加テストした後、独立再reviewと親reviewで指摘なしを確認した。
-- commit情報: task作成`44ccc1a`、policy実装`ccacfcc`、review修正`8f6cfda`。GitHub Connector公開ではlocalとremoteのcommit SHAが異なり得るため、公開時は最終tree SHA一致を確認する。
+- commit情報: task作成`44ccc1a`、policy実装`ccacfcc`、review修正`8f6cfda`、完了記録`785b480`。GitHub Connector公開ではlocalとremoteのcommit SHAが異なるため、最終tree SHA一致を正本として確認した。
 - 残るリスク・未実施検証: workflow YAMLのローカルparseだけ未実施。GitHub Actionsが失敗した場合は同じtask・branch・Pull Requestで修正する。
-- Pull Request: 未作成（次工程で`github-connector`によりbranchを公開し、`main`向けdraft Pull Requestを作成する）。
+- Pull Request: [#20 承認ゲートとCloud / Local実行判定を整理する](https://github.com/shu-matsukubo/matsu-workspace/pull/20)をdraftで作成。headは`codex/2026-08-18-fix-approval-gate-execution-context`、baseは`main`。初回公開時のremote headは`ef0b7a04c71b62acbb73ba3b629cf293ae91e950`で、remote / Local tree SHAは`803ee259d5bead6eada6a896a3bf1ce2dc3834f9`に一致した。CI待ちであり、このtask内では結果をポーリングしない。
