@@ -10,11 +10,12 @@ description: ユーザー承認済みtaskを、依存関係、リポジトリ境
 ## 実行条件を確認する
 
 1. 承認されたタスクID、確認事項の回答、除外範囲を固定する。
-2. 承認は、各タスクに必要なbranch作成、実装、検証、明示的なcommitまでを許可する。Localではremoteへの公開とdraft Pull Request作成までを含むが、Codex Cloudではremote publishを試行せずCodex Web UIへ委ねる。
+2. 承認は、task file作成、branch作成、実装、必要なテストコード追加・更新、検証、self review、承認済みagent strategyのreview、commit、task fileの実施・検証結果更新、completed化、documentation follow-up・残課題・Pull Request状態等の記録までを一連の完了処理として許可する。これらのbookkeepingだけで追加承認を要求しない。目的、work、repository、completion、out-of-scopeその他の承認範囲を変える場合だけ再計画・再承認へ戻す。
 3. Pull Requestのmergeは許可に含めない。ユーザーの明示的な指示なしにmergeしない。
 4. 承認外の改善や追加変更を見つけた場合は、作業へ混ぜず新しいタスクとして記録する。
 5. 各タスクについて、実装を所有するGitリポジトリと `.agents/tasks/active/` の明示pathを確定する。タスクファイルがまだなければ、親ワークスペースの `.agents/tasks/TEMPLATE.md` から作成し、実装前にそのファイルだけをcommitする。Cloud child Issueではexecution packetのkey、title、repository、work、agent strategy、completion、dependencies、parent Issue、approved plan、concerns、documentation modeを意味変更せず投影し、第二の承認内容を作らない。
 6. Cloud child Issueでは親のapproved plan revision/hash、dispatch-id、親Issue、現在のchild Issue本文が一致することを確認する。実装開始前に依存Issue・task・Pull Request、対象CIをGitHubから再取得し、計画時点の状態だけで開始しない。execution packetへの要件追加は実装せず親Issueの再計画・再配送へ戻す。
+7. task fileまたはtrusted execution packetから、開始時に確定済みの実行コンテキスト、公開モード、判定根拠を取得して全担当と下流skillへ引き継ぐ。存在しない既存taskだけは`.github/scripts/task-execution-policy.cjs`へtrusted runtime metadataと実際のcapabilityを渡して開始前に確定し、task本文から推測しない。確定不能時は`unknown` / `remote-stopped`とし、各skillで再判定しない。
 
 ## 割り当てる
 
@@ -44,10 +45,10 @@ description: ユーザー承認済みtaskを、依存関係、リポジトリ境
 2. 要件、リポジトリ境界、文書の正本、テスト範囲に照らしてレビューする。
 3. 修正が必要なら同じタスクとbranchへ具体的に差し戻し、既に公開済みなら同じPull Requestで修正commitと再検証を求める。
 4. 承認範囲を超える問題は別タスクへ分ける。
-5. 合格したタスクは実行環境に応じて完了処理へ進める。Cloudではcommitと完了報告後、remote操作を試さずCodex Web UIからの公開を案内する。Localでは`publish-task-pr`へ委譲してdraft Pull Requestを公開する。
+5. 合格したタスクは記録済みの公開モードに従って完了処理へ進める。`codex-web-ui`ではcommitと完了報告後、remote tool探索を含むremote操作を試さずCodex Web UIからの公開を案内する。`github-connector`または`local-git-fallback`では`publish-task-pr`へ委譲する。`remote-stopped`では実装完了を報告し、publication contextだけを理由にremote公開を停止する。
 
 ## 完了を報告する
 
 親レビューに合格した後、activeタスクファイルへ実施結果と検証結果を記録し、状態を `completed` にして `.agents/tasks/completed/<完了年>/` へ移す。この更新と移動はtask完了commitとする。同一リポジトリの実装commit SHAは必須にせず、別リポジトリの依存commitなど対応関係の確認に必要な場合だけ記録する。
 
-タスク定義、実装、完了記録は同じtask branchへ含める。task file stem、branch、検証結果、未解決の疑問点、documentation follow-upをタスクごとに集約する。Cloudではcommitまで完了したら「実装とレビューが完了し、Pull Request公開はCodex Web UIから行う」旨を返す。Localでは1つのdraft Pull Requestへ公開する。公開後のレビュー修正も承認範囲が変わらない限り同じtask、branch、Pull Requestで扱い、責務や対象範囲が増える場合だけ新しいタスクへ分ける。
+タスク定義、実装、完了記録は同じtask branchへ含める。task file stem、branch、検証結果、未解決の疑問点、documentation follow-upをタスクごとに集約する。`codex-web-ui`ではcommitまで完了したら「実装とレビューが完了し、Pull Request公開はCodex Web UIから行う」旨を返す。`github-connector`または`local-git-fallback`では1つのdraft Pull Requestへ公開する。`remote-stopped`では「実装は完了し、publication contextだけを確定できないためremote公開を停止した」と返す。公開後のレビュー修正も承認範囲が変わらない限り同じtask、branch、Pull Requestで扱い、責務や対象範囲が増える場合だけ新しいタスクへ分ける。
