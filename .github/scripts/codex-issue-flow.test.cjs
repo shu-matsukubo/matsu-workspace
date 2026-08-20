@@ -304,6 +304,11 @@ test('repository skill metadata is complete and references its protocol on any n
   assert.match(skill, /references\/issue-protocol\.md/);
   assert.match(skill, /`plan`[\s\S]*`answer`[\s\S]*`revise`[\s\S]*`dispatch`[\s\S]*`review-fix`[\s\S]*`unknown`/);
   assert.match(skill, /承認指示に要件変更が含まれれば`revise`/);
+  assert.match(skill, /handlerによる現在状態の判定が最初のaction/);
+  assert.match(skill, /曖昧な開始依頼も`plan`へfallback/);
+  assert.match(skill, /すべての親Issue結果[\s\S]*result marker/);
+  assert.match(skill, /人間向け表示[\s\S]*日本語/);
+  assert.match(skill, /親Issueの`review-fix`[\s\S]*検証済みchild execution packet[\s\S]*`state=question`/);
   assert.doesNotMatch(skill, /TODO/);
   assert.match(metadata, /default_prompt: ".*\$handle-github-issue-event/);
 });
@@ -320,7 +325,9 @@ test('protocol defines safe result states and task template preserves the source
   ), 'utf8').replace(/\r\n?/g, '\n');
   assert.match(protocol, /`error`だけは`revision=0`を許可/);
   assert.match(protocol, /ユーザー確認を返す結果は`state=question`/);
-  assert.match(protocol, /修正と再検証が成功[\s\S]*`state=pr-created`/);
+  assert.match(protocol, /`state`は[\s\S]*`pr-created`から選ぶ/);
+  assert.match(protocol, /親Issueのhandler[\s\S]*検証済みchild execution packet[\s\S]*`state=question` result marker/);
+  assert.match(protocol, /`pr-created`はstate enumから削除しない[\s\S]*親Issueの`review-fix`経路案内成功を表すためには使わない/);
   assert.match(protocol, /handled commentより後の境界を持つresultは同期しない/);
   assert.match(protocol, /`state=tasks-dispatched`/);
   assert.match(protocol, /1 task block = 1 child Issue/);
@@ -334,6 +341,12 @@ test('protocol defines safe result states and task template preserves the source
   assert.match(protocol, /人数と担当範囲はpayloadへ追加せず/);
   assert.match(protocol, /必要最小限を決め/);
   assert.match(protocol, /state label同期の直前に全コメントを再取得/);
+  assert.match(protocol, /親Issue Cloudの入口hard gate/);
+  assert.match(protocol, /判定が完了する前[\s\S]*source・test変更[\s\S]*実装開始を禁止/);
+  assert.match(protocol, /曖昧な開始依頼[\s\S]*`plan`へfallback/);
+  assert.match(protocol, /親Issue Cloudではchild repositoryのdependency install[\s\S]*実装品質ゲートを実行しない/);
+  assert.match(protocol, /execution packetは[\s\S]*検証[\s\S]*探索的なinstall・update・lockfile再構築/);
+  assert.match(protocol, /ユーザー向け出力の言語/);
   assert.match(skill, /明示承認した場合だけ`explicit-update`/);
   assert.match(taskTemplate, /承認時source境界owner comment ID:/);
   assert.match(taskTemplate, /タスクキー:/);

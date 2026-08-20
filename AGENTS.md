@@ -23,6 +23,8 @@
 - documentation modeや公開方針など実装を制御する値はtask作成時または実装開始時に確定します。実装後に判明した文書影響は新しい方針ではなく`documentation follow-up required`等の結果として記録し、そのbookkeepingだけで追加承認を要求しません。
 - タスクブランチは `codex/<task-file-stem>` とします。子モジュールと `docs` のPull Requestは `develop`、親ワークスペースのPull Requestは `main` を向き先とします。
 - 承認範囲外の改善は実装せず、追加タスクとして提案してください。要件を安全に確定できない場合は推測せず、ユーザーへ確認してください。
+- GitHub Issue Cloudの親`matsu-workspace` Issueでは、最初に必ず`handle-github-issue-event`で現在状態を判定し、判定完了前はsource変更、branch・commit作成、実装agent起動、`coordinate-approved-tasks`による実装開始を行いません。親Issueは計画・承認・dispatchのcontrol planeであり、子repositoryの実装場所ではありません。詳細は同skillとIssue protocolへ委ねます。
+- 親Issueに有効なplanがない曖昧な開始依頼は`plan`へ進め、有効なplanが未承認ならdispatchもimplementationも開始しません。承認済み親planはchild Issueへdispatchするだけとし、Cloud implementationは検証済みchild execution packetからだけ開始します。入口判定には`.github/scripts/task-execution-policy.cjs`を使用します。
 - GitHub Issue駆動では、親`matsu-workspace` Issueをcontrol planeとし、repository ownerのIssue上の`@codex`付き自然言語コメントだけを起点とします。承認前は信頼できるCodexの最新計画コメントを正本とし、承認後はそのtaskを再分解せずdispatch block、child Issue execution packet、task fileへ同じ内容のまま投影します。親Issueの承認後に子repositoryを直接実装せず、GitHub Actionsの配送後、ユーザーがchild Issueを確認して明示的に起動します。意図判定と詳細なtrust boundaryには `.agents/skills/handle-github-issue-event` を使用します。
 
 ## 実行コンテキストと公開モード
@@ -64,9 +66,11 @@
 - 1タスク1責務を基本とし、変更を承認された目的へ限定します。
 - 実装後は変更差分を自己レビューし、対象モジュールで定義されたテスト、静的解析、buildなど必要な品質ゲートを実行します。未実施または失敗した検証は理由とともに報告します。
 - Issue駆動で既存CIへテスト実行を委譲する場合も、必要なテストコードを追加・更新し、workflowのcoverageを確認します。ローカル未実行のテストを成功扱いせず、task fileとPull Requestへ「未実行・CI委譲中」と記録します。コード変更を覆うCIがなければ実装前に停止し、CI結果を同じCodexタスク内でポーリングしません。
+- 親Issue Cloudではchild repositoryのdependency installや実装品質ゲートを実行しません。Cloud agent phaseでは、承認済みtaskにdependency変更が明記されていない限り探索目的のinstall・update・lockfile再構築を行わず、追加dependencyが必要なら理由、候補、既存手段で不足する点を報告してscope変更と再承認へ戻します。この制約をLocal directの既存実装・検証フローへ適用しません。
 - 通常の実装タスクではREADME、`docs`、利用者・開発者向け文書を変更しません。設計、利用方法、API、CI、認証などへの影響があれば、変更内容、影響候補の文書、更新理由を `documentation follow-up required` として実施結果へ記録し、別の明示的なdocumentationタスクへ委ねます。
 - ユーザーがdocumentation更新をタスクへ明示的に含めた場合だけ、文書の正本とリポジトリ境界を確認して更新します。アーキテクチャ判断やサービス境界に影響する変更も、実装へ混ぜず独立した`docs`タスクとして計画します。
 - 文書は日本語で記載します。新しいトップレベルの文書カテゴリを追加する前にユーザーへ確認します。
+- Issue、Pull Request、質問、計画、dispatchの人間向け表示、依存待ち、検証・完了・review対応、documentation follow-upなど、ユーザー向けMarkdownは原則日本語で記載します。machine-readable marker・JSON、identifier、command、username・repository・package名、原文エラーは変更しません。
 - secretや認証情報をcommitしません。削除、上書き、外部公開など復旧しにくい操作は、対象を確認し、承認範囲内でのみ実行します。
 
 ## AIの作業フロー

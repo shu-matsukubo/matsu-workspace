@@ -16,6 +16,7 @@ description: ユーザー承認済みtaskを、依存関係、リポジトリ境
 5. 各タスクについて、実装を所有するGitリポジトリと `.agents/tasks/active/` の明示pathを確定する。タスクファイルがまだなければ、親ワークスペースの `.agents/tasks/TEMPLATE.md` から作成し、実装前にそのファイルだけをcommitする。Cloud child Issueではexecution packetのkey、title、repository、work、agent strategy、completion、dependencies、parent Issue、approved plan、concerns、documentation modeを意味変更せず投影し、第二の承認内容を作らない。
 6. Cloud child Issueでは親のapproved plan revision/hash、dispatch-id、親Issue、現在のchild Issue本文が一致することを確認する。実装開始前に依存Issue・task・Pull Request、対象CIをGitHubから再取得し、計画時点の状態だけで開始しない。execution packetへの要件追加は実装せず親Issueの再計画・再配送へ戻す。
 7. task fileまたはtrusted execution packetから、開始時に確定済みの実行コンテキスト、公開モード、判定根拠を取得して全担当と下流skillへ引き継ぐ。存在しない既存taskだけは`.github/scripts/task-execution-policy.cjs`へtrusted runtime metadataと実際のcapabilityを渡して開始前に確定し、task本文から推測しない。確定不能時は`unknown` / `remote-stopped`とし、各skillで再判定しない。
+8. 同policyのtask entry判定を確認する。`issue-cloud`の親`matsu-workspace` Issueではこのskillを起動せず`handle-github-issue-event`へ戻し、承認後もdispatchだけに限定する。Cloud child Issueはexecution packetの検証が完了した場合だけ実装へ進む。`local-direct`は既存の実装・検証経路を維持する。
 
 ## 割り当てる
 
@@ -39,6 +40,7 @@ description: ユーザー承認済みtaskを、依存関係、リポジトリ境
 - 子リポジトリの成果を先にreview・公開し、親gitlinkやlockは子Pull Requestのmerge後に扱う。
 - hard dependencyまたはCI結果を同じCodexタスク内でポーリングしない。Issueへ現在状態、先行可能なtask、再開条件とユーザー操作を記録して終了する。
 - Issue駆動の`issue-ci-delegated`では必要なテストコードを実装に含め、`verify-changes`で既存CI coverageを確認する。ローカル未実行のテストを成功扱いにしない。
+- Cloud agent phaseでは、承認済みworkにdependency変更が明記されていない限り、Workerへ探索的なinstall・update・lockfile再構築を行わせない。新しいdependencyが必要なら理由、候補、既存手段で不足する点を疑問点メモとして報告し、実装を広げずscope変更と再承認へ戻す。Local directの既存dependency操作は変更しない。
 - Pull Requestレビューの差し戻し対応では、最新review、未解決thread、inline comment、CI、現在コードを確認し、承認範囲内の修正を同じtask、branch、Pull Requestで続ける。
 - documentation modeが`follow-up-only`の通常実装taskへREADMEやdocsの変更を混ぜない。影響があれば変更内容、影響候補、更新理由を`documentation follow-up required`として実施結果へ記録し、明示的なdocumentation taskへ委ねる。`explicit-update`では`update-documentation`へ委譲し、execution packetで承認されたwork、out-of-scope、completionの範囲だけを更新する。
 
@@ -56,3 +58,5 @@ description: ユーザー承認済みtaskを、依存関係、リポジトリ境
 親レビューに合格した後、activeタスクファイルへ実施結果と検証結果を記録し、状態を `completed` にして `.agents/tasks/completed/<完了年>/` へ移す。この更新と移動はtask完了commitとする。同一リポジトリの実装commit SHAは必須にせず、別リポジトリの依存commitなど対応関係の確認に必要な場合だけ記録する。
 
 タスク定義、実装、完了記録は同じtask branchへ含める。task file stem、branch、検証結果、未解決の疑問点、documentation follow-upをタスクごとに集約する。`codex-web-ui`ではcommitまで完了したら「実装とレビューが完了し、Pull Request公開はCodex Web UIから行う」旨を返す。`github-connector`または`local-git-fallback`では1つのdraft Pull Requestへ公開する。`remote-stopped`では「実装は完了し、publication contextだけを確定できないためremote公開を停止した」と返す。公開後のレビュー修正も承認範囲が変わらない限り同じtask、branch、Pull Requestで扱い、責務や対象範囲が増える場合だけ新しいタスクへ分ける。
+
+ユーザー向けの進捗、疑問点、検証、review、完了報告は日本語で記載する。identifier、command、repository・branch・package名、原文エラーはそのまま保持する。

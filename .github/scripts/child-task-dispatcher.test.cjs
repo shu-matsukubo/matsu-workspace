@@ -522,11 +522,20 @@ test('execution packet preserves dependencies and never auto-mentions Codex', ()
   assert.match(body, /実行コンテキスト: `issue-cloud`/);
   assert.match(body, /公開モード: `codex-web-ui`/);
   assert.match(body, /task本文から再判定しません/);
+  assert.match(body, /## 実装開始gate/);
+  assert.match(body, /version 1 marker、対象repository、親Issue、approved plan、dispatch-id/);
+  assert.match(body, /packet検証が完了するまで、source・test変更、branch・commit作成、実装agent起動、実装品質ゲートを開始しません/);
   assert.match(body, /人数や担当範囲を固定しません/);
   assert.match(body, /責務境界、依存関係、変更競合、統合コストから必要最小限/);
   assert.match(body, /行数やtask規模だけで人数を決めません/);
   assert.match(body, /同一ファイルの大幅変更、強い依存/);
   assert.match(body, /Worker間の整合性、task全体の仕様充足、責務境界、統合後の問題/);
+  assert.match(body, /## dependency操作/);
+  assert.match(body, /dependency変更が明記されていない限り、探索目的のinstall・update/);
+  assert.match(body, /npm install --package-lock-only/);
+  assert.match(body, /installを試す前にscope変更として再計画・再承認/);
+  assert.match(body, /人間向けMarkdownは日本語/);
+  assert.match(body, /machine-readable marker・JSON/);
   assert.match(body, /documentation follow-up required/);
 });
 

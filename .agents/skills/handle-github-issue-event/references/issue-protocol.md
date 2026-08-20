@@ -14,6 +14,13 @@
 - trusted Child Task Dispatcherは、検証済みeventから作るchild Issue execution packetへ`実行コンテキスト: issue-cloud`、`公開モード: codex-web-ui`、判定根拠をruntime bookkeepingとして付与する。承認済みplanの意味内容やversion 1 dispatch schemaは変更しない。
 - `cloud-direct`と`local-direct`はこのIssue protocolから推測せず、信頼できるruntime metadataでだけ確定する。確定不能時は`unknown` / `remote-stopped`とし、実装・検証・review・commit・完了記録を継続してremote公開だけを停止する。
 
+## 親Issue Cloudの入口hard gate
+
+- 親`matsu-workspace` Issueの`issue-cloud`では、最初に`handle-github-issue-event`でIssue、全コメント、関連Issue・Pull Request、最新planを評価する。`.github/scripts/task-execution-policy.cjs`の`parent-issue`判定が完了する前は、source・test変更、branch・commit作成、実装agent起動、`coordinate-approved-tasks`による実装開始を禁止する。
+- 有効なplanがない状態で「作業を始めてください」「お願いします」「対応してください」等の曖昧な開始依頼を受けた場合は`plan`へfallbackし、implementationとdispatchを禁止する。有効なplanがあっても明確な承認・配送意思がなければdispatchしない。
+- 親Issueでplanが承認された後も許可するのはversioned dispatch blockの生成だけであり、親Cloud sandboxから子repositoryを直接実装しない。Cloud implementationは、trusted Child Task Dispatcherが作成したchild Issueでexecution packetを検証し、repository ownerが明示起動した後だけ開始する。
+- 親Issue Cloudではchild repositoryのdependency installと、`npm test`、`npm run build`、`composer test`等の実装品質ゲートを実行しない。親ではsource・repository境界、Issue・Pull Requestの現在状態、dependency graph、task schema、dispatchを検証する。
+
 ## ラベル
 
 ラベルをユーザーからCodexへのコマンドに使わない。repository ownerはIssue上の`@codex`付き自然言語コメントで処理を開始し、Actionsはコメント内容の意味を判定せず、Codexのresult markerから状態ラベルを一つだけ同期する。
@@ -110,6 +117,12 @@ allowlistは`shu-matsukubo/matsu-front`、`matsu-bff`、`matsu-api`、`matsu-aut
 
 task単位で作成・再利用するため、partial failure後のrerunでは成功済みIssueを再利用し、未作成taskだけを継続する。子Issueはtask key、title、repository、親Issue URL、approved plan、dispatch ID、agent strategy、work、out-of-scope、completion、dependencies、concerns、verification、Cloud publish、documentation mode別方針に加え、trusted event由来の実行コンテキスト、公開モード、判定根拠を含む自己完結したexecution packetとする。agent構成には、Mainが責務境界、依存、変更競合、統合コストから必要最小限を決め、各Workerがself reviewし、Reviewer利用時は専属配置ではなく統合整合を確認し、Mainが統合と最終reviewに責任を持つことを含める。`follow-up-only`では本文を変更せず影響記録へ限定し、`explicit-update`では承認されたwork、out-of-scope、completionの範囲内だけ文書本文を更新する。親workspaceのlocal skillを前提にせず、自動のCodexメンションを含めない。ユーザーが内容を確認した後に明示コメントで起動する。
 
+execution packetは、実装開始前に先頭marker、schema version、対象repository、親Issue、approved plan、dispatch ID、work・out-of-scope・completion、現在のdependency状態を検証する自己完結した指示を含める。検証が完了するまでsource・test変更、branch・commit作成、実装agent起動、品質ゲートを開始しない。承認済みworkにdependency変更が明記されていなければCloud agent phaseで探索的なinstall・update・lockfile再構築を行わず、追加dependencyが必要なら理由、候補、既存手段で不足する点を報告してscope変更と再承認へ戻る。
+
+## ユーザー向け出力の言語
+
+Issueへの質問、計画、task分解、差し戻し、dispatchの人間向け表示、dependency待ち、実装・検証・review・完了報告、Pull Request title/body、documentation follow-upは原則日本語で記載する。machine-readable marker・JSON、identifier、command、GitHub username、repository・branch・package名、原文エラー、技術上自然な固有名詞は変更しない。
+
 親IssueにはGitHub Actions botがplan revision/hashごとのtracking marker付き対応表を作成または更新する。各taskのchild Issue URL、作成・既存再利用・失敗を記録し、rerunで同じtracking commentを更新する。tracking履歴のupsert後、state label同期の直前に全コメントを再取得する。dispatch eventが現在も最新owner commandに対応する最新の信頼済みresultである場合だけ配送結果のstateを同期し、新しいowner commandまたはtrusted resultがあれば古いrunはtracking履歴だけを残して現在stateを変更しない。prepare marker自体が不正なfailure eventも、eventより新しいowner commandまたは有効なtrusted resultがない場合だけ`Codex:要判断`へ同期する。比較は`created_at`、同時刻ならcomment IDの昇順とする。親Codexが後から状態を評価するときは、この表だけでなくchild Issue、関連Pull Requestの現在状態をGitHubから再取得する。
 
 ## 自然言語の意図別判断
@@ -133,8 +146,9 @@ task単位で作成・再利用するため、partial failure後のrerunでは�
 
 - Issueに関連するPull Requestを特定し、Pull Requestの最新review、未解決thread、inline comment、CI結果、現在コード、task fileを取得する。
 - Issueをcontrol plane、Pull Requestをレビュー内容の正本として扱う。解決済みまたは現在コードと一致しない古い指摘を再適用しない。
-- 承認範囲内なら同じtask・branch・Pull Requestで修正、自己レビュー、再検証を行う。責務や対象範囲が増える場合は`revise`として新しい計画と承認へ戻す。
-- 修正と再検証が成功し、Localで同じPull Requestへ反映を確認できた結果だけを`state=pr-created`とする。Cloudではremote反映を試行せず、commit後の公開・更新をCodex Web UIへ委ねる。
+- 親Issueのhandlerでは指摘の現在有効性と、同じ承認済みtask・Pull Requestに対応する検証済みchild execution packet・task contextを特定するまでに限定する。source・test変更、branch・commit作成、実装agent起動、dependency操作、品質ゲート、remote反映は行わない。
+- 対応するpacketとtask contextを確認できた場合は、repository ownerがそのchild IssueでCodexを明示起動して修正、self review、再検証、同じPull Requestへの反映を行うよう日本語で案内する。通常の経路案内結果は`state=question` result markerとする。
+- packetがない、task・Pull Requestとの不一致がある、または責務や対象範囲が増える場合は親Issueで再計画・再配送へ戻す。`pr-created`はstate enumから削除しないが、親Issueの`review-fix`経路案内成功を表すためには使わない。
 
 ### unknown
 

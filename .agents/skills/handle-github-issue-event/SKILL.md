@@ -9,6 +9,8 @@ description: 親matsu-workspace Issue上のrepository ownerによる@codex付き
 
 処理前に [references/issue-protocol.md](references/issue-protocol.md) を完全に読む。起動コメント単体を要件として扱わず、Issue、状態ラベル、全コメント、関連Issue・Pull Request・task fileの現在状態を取得する。
 
+親`matsu-workspace` Issueの`issue-cloud`では、このhandlerによる現在状態の判定が最初のactionである。`.github/scripts/task-execution-policy.cjs`の共通入口policyで`parent-issue`として評価し、判定完了前はsource・test変更、branch・commit作成、実装agent起動、`coordinate-approved-tasks`による実装開始を行わない。親Issueはcontrol planeであり、承認後も子repositoryを直接実装せずdispatchだけを行う。
+
 GitHubの現在状態を取得またはIssueへコメントできない場合は推測で続行しない。利用可能な経路で取得不能理由を報告し、`error` result markerを付けて終了する。認証情報を追加しない。
 
 ## 起点と現在状態を判定する
@@ -29,6 +31,8 @@ repository ownerがIssueへ投稿した最新の`@codex`付きコメントだけ
 - `unknown`: 現在状態を含めても安全に意図を確定できない入力
 
 「タスク分解」「計画」等の依頼からdispatchまたは実装を開始しない。「お願いします」だけを承認待ち状態という理由で`dispatch`にしない。承認・配送意思が明確でなければ確認し、承認指示に要件変更が含まれれば`revise`として再計画・再承認へ戻す。Issue内で確認できる事項を質問し直さず、実装内容・責務・完了条件・対象repositoryを変える未解決事項だけを質問する。
+
+有効なplanが存在しない親Issueでは、「作業を始めてください」「お願いします」「対応してください」等の曖昧な開始依頼も`plan`へfallbackし、要件確認、task分解、計画提示、承認待ちまでに限定する。有効なplanが未承認なら曖昧な開始依頼からdispatchせず、承認済みplanと明確な配送意思を確認した場合だけ`dispatch`する。すべての親Issue結果は通常の完了サマリだけで終えず、protocol所定のresult markerを付ける。
 
 ## revisionとsource境界を検証する
 
@@ -58,7 +62,7 @@ node .agents/skills/handle-github-issue-event/scripts/analyze-dependencies.mjs <
 - `plan`、`answer`、`revise`、`unknown`の確認または計画: `plan-tasks`
 - `dispatch`: 最新planのtaskを再分解せず、protocol所定のversioned JSON dispatch blockへ一対一で投影する。1件のCodex result commentへ全task blockと人間向け表示を格納し、`state=tasks-dispatched` markerを末尾に1つだけ付ける。親Issue承認後にsubmoduleや子repositoryを直接実装しない。
 - 配送済みCloud child IssueまたはIssueを経由しないLocal taskの実装、割り当て、親review: `coordinate-approved-tasks`
-- `review-fix`: Pull Requestの最新review・未解決thread・inline comment・CI・現在コード・task fileを取得し、同じtask・branch・Pull Requestで`review-changes`、`verify-changes`、必要な実装手順へ委譲。開始時に引き継いだ公開モードが`github-connector`または`local-git-fallback`で同じPull Requestへの反映を確認できた成功結果だけを`pr-created`とし、`codex-web-ui`ではremote反映を試行せずCodex Web UIへ委ね、`remote-stopped`ではremoteだけ停止する
+- 親Issueの`review-fix`: Pull Requestの最新review・未解決thread・inline comment・CI・現在コード・task fileを取得し、指摘の現在有効性と対応する検証済みchild execution packet・task contextを特定する。親handlerはsource・test変更、branch・commit作成、実装agent起動、dependency操作、品質ゲート、remote反映を行わず、ユーザーが該当child task contextで明示起動する手順を日本語で案内し、`state=question` result markerを付ける
 - 差分レビュー: `review-changes`
 - 検証経路の判定と記録: `verify-changes`
 - documentation follow-up判定、または明示承認された別documentation task: `update-documentation`
@@ -70,10 +74,12 @@ node .agents/skills/handle-github-issue-event/scripts/analyze-dependencies.mjs <
 
 dispatch payloadは`key`、`title`、`repository`、`work`、`agentStrategy`、`completion`、`dependencies`、`parentIssue`、`approvedPlan`、`concerns`に加え、priority、verification、out-of-scope、Cloud publish、documentation方針をprotocolの厳格schemaで表す。既存v1の`cloudPublish`は`issue-cloud`互換契約であり、一般的な環境推測には使わない。trusted Dispatcherが検証済みevent contextから`issue-cloud` / `codex-web-ui`をchild execution packetへruntime bookkeepingとして付与する。documentation modeは通常taskの`follow-up-only`を既定とし、ユーザーがdocumentation本文更新をtaskへ明示承認した場合だけ`explicit-update`を配送する。`dispatchId`は親repository、親Issue番号、task key、plan revisionから再計算した値だけを記録する。child Issueへの自動メンションは含めない。
 
-`review-fix`ではPull Requestをレビュー内容の正本、Issueをフローのcontrol planeとする。Issue上の依頼だけから修正内容を推測せず、解決済みまたは現在コードと一致しない古い指摘を再適用しない。責務が増える場合は新しい計画と承認へ戻す。
+親Issueの`review-fix`ではPull Requestをレビュー内容の正本、Issueをフローのcontrol planeとする。Issue上の依頼だけから修正内容を推測せず、解決済みまたは現在コードと一致しない古い指摘を再適用しない。検証済みchild execution packetと同じtask・Pull Requestの対応を確認できた場合だけ、そのchild task contextでrepository ownerがCodexを明示起動するよう案内する。packetがない、不一致がある、または責務が増える場合は親Issueで再計画・再配送へ戻す。親handler自身は修正・検証・commit・公開を行わず、通常の経路案内結果を`state=question`とする。
 
 `unknown`でユーザー確認を返す場合は`question`とする。GitHub取得失敗等で計画revisionが未成立の`error`だけは`revision=0`を許可する。plan hashを特定できない状態へ`blocked`を使わない。
 
 ## 結果を一度だけ返す
 
 結果本文に判断根拠、次のユーザー操作、未完了依存またはPull Requestを含める。dispatch成功時の次操作は、GitHub Actionsが作成・再利用したchild Issueを確認し、問題がなければ各Issueでrepository ownerがCodexを明示起動することとする。末尾へprotocol所定のresult markerを1つだけ付ける。依存待ちやCI待ちで同じCodexタスク内のポーリングを続けない。
+
+質問、計画、task分解、差し戻し、dispatchの人間向け表示、依存待ち、review対応、完了報告は日本語で記載する。machine-readable marker・JSON、identifier、command、username・repository・package名、原文エラーは変更しない。
