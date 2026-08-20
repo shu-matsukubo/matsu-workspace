@@ -14,6 +14,7 @@ test('approved task bookkeeping never requires reapproval', () => {
     'unperformedVerification',
     'remainingRisk',
     'documentationFollowUp',
+    'agentAllocation',
     'agentExecutionResult',
     'pullRequestStatus',
     'commitInfo',

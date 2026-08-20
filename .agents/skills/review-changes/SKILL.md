@@ -12,6 +12,7 @@ description: 承認済み要件に対する変更差分を、正しさ、回帰�
 3. `git status` とbaseからのdiffを確認し、対象外のファイルや別タスクの差分を分離する。
 4. Issue駆動では承認済みrevision・plan/source hash・source境界のowner comment IDに加え、dispatch-idとchild Issue execution packetを照合する。計画、dispatch、child Issue、task file、実装差分でkey、repository、work、agent strategy、completion、dependencies、concernsが変わっていないこと、境界後または実装開始後の前提変更や承認範囲外の差分がないことを確認する。
 5. task開始時に確定した実行コンテキスト、公開モード、判定根拠がtask fileまたはtrusted execution packetから下流へ引き継がれ、task・prompt本文から再判定されていないことを確認する。実施・検証結果やcompleted化等のbookkeepingだけをscope変更として扱っていないことも確認する。
+6. 複数Workerを利用した場合は、承認済みagent strategy内のagent allocation、各Workerの担当範囲とself review、統合済みdiff、担当間の依存・前提を確認する。人数と担当範囲のbookkeepingをagent strategy変更として扱わず、承認外のagent種別やworkが追加されていないことを確認する。
 
 ## 重要度順に確認する
 
@@ -22,6 +23,8 @@ description: 承認済み要件に対する変更差分を、正しさ、回帰�
 3. 回帰を検出できないテストや検証の不足
 4. README・docs・AGENTS・skillの責務混在、事実と異なる説明、将来予定の既成事実化、通常実装taskへdocumentation本文を混ぜる境界違反、必要な`documentation follow-up required`の記録漏れ
 5. 不要な複雑化、重複、認知コストを上げる記述
+
+独立ReviewerまたはMainが複数Workerの統合差分を確認する場合は、個別実装の細部だけでなく、Worker間の契約・前提・生成物の整合、task全体の仕様充足、責務境界、重複・欠落、統合後の回帰、全体検証の不足を確認する。各Workerへの専属Reviewerは要求せず、review範囲を分ける場合も必要最小限にする。MainはReviewerの報告だけで完了判定せず、統合差分と検証結果を最終確認する。
 
 タスクファイル自体の差分では、承認範囲が正しく固定されていること、完了時には実施結果と検証結果が事実と一致すること、task file stem、branch、Pull Requestの対応が保たれていることを確認する。同一リポジトリの実装commit SHAは必須にしない。別リポジトリの依存commitなどが記載されている場合だけ、その到達可能性と対応関係を確認する。コードやGit履歴から確認できる詳細の複製は求めない。
 

@@ -21,6 +21,7 @@ const BOOKKEEPING_FIELDS = Object.freeze([
   'unperformedVerification',
   'remainingRisk',
   'documentationFollowUp',
+  'agentAllocation',
   'agentExecutionResult',
   'pullRequestStatus',
   'commitInfo',

@@ -550,9 +550,9 @@ function dependencyTable(dependencies) {
 
 function agentStrategyGuidance(strategy) {
   const guidance = {
-    'parent-only': '親agent自身が実装とself reviewを行います。',
-    'worker-parent-review': '作業用sub-agentが実装とself reviewを行い、親agentがdiffと検証結果を直接reviewします。',
-    'worker-reviewer-parent': '作業用sub-agentが実装とself review、独立review agentがreviewを行い、最後に親agentがdiffと検証結果を直接reviewします。',
+    'parent-only': 'Main自身が実装とself reviewを行い、WorkerまたはReviewerを追加しません。',
+    'worker-parent-review': '1人以上のWorkerが担当範囲を実装してself reviewし、Mainが全成果を統合してdiffと検証結果を直接reviewします。',
+    'worker-reviewer-parent': '1人以上のWorkerが担当範囲を実装してself reviewし、Mainが全成果を統合した後、1人以上の独立Reviewerがその統合差分をreviewし、Mainがdiffと検証結果を最終reviewします。',
   };
   return guidance[strategy];
 }
@@ -599,6 +599,8 @@ function buildChildIssueBody(task) {
     '## agent構成',
     '',
     `- ${agentStrategyGuidance(task.agentStrategy)}`,
+    '- agent strategyは人間が承認したagent種別と必須review経路であり、人数や担当範囲を固定しません。Workerを利用する場合、Mainが責務境界、依存関係、変更競合、統合コストから必要最小限を決め、行数やtask規模だけで人数を決めません。',
+    '- 同一ファイルの大幅変更、強い依存、または過大な統合負荷がある作業は無理に並列化せず、小さいtaskを並列化のためだけに過剰分割しません。Reviewerを利用するstrategyでは各Workerへの専属配置を要求せず、Worker間の整合性、task全体の仕様充足、責務境界、統合後の問題を確認します。',
     '- sub-agentの報告だけで完了判定せず、指定された親reviewまで完了します。',
     '',
     '## 作業内容',

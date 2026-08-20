@@ -522,7 +522,19 @@ test('execution packet preserves dependencies and never auto-mentions Codex', ()
   assert.match(body, /実行コンテキスト: `issue-cloud`/);
   assert.match(body, /公開モード: `codex-web-ui`/);
   assert.match(body, /task本文から再判定しません/);
+  assert.match(body, /人数や担当範囲を固定しません/);
+  assert.match(body, /責務境界、依存関係、変更競合、統合コストから必要最小限/);
+  assert.match(body, /行数やtask規模だけで人数を決めません/);
+  assert.match(body, /同一ファイルの大幅変更、強い依存/);
+  assert.match(body, /Worker間の整合性、task全体の仕様充足、責務境界、統合後の問題/);
   assert.match(body, /documentation follow-up required/);
+});
+
+test('reviewer strategy describes integrated review without dedicated reviewers', () => {
+  const task = taskPayload({ agentStrategy: 'worker-reviewer-parent' });
+  const body = dispatcher.buildChildIssueBody(task);
+  assert.match(body, /1人以上のWorkerが担当範囲を実装してself reviewし、Mainが全成果を統合した後、1人以上の独立Reviewerがその統合差分をreviewし、Mainがdiffと検証結果を最終review/);
+  assert.match(body, /Reviewerを利用するstrategyでは各Workerへの専属配置を要求せず/);
 });
 
 test('explicitly approved documentation mode permits only the scoped document update', () => {

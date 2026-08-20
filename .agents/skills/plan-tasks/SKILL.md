@@ -22,7 +22,7 @@ description: 変更作業を始める前に、要件をレビュー可能な単�
 - 依存タスクは着手可否を決める制約として整理し、着手可能なタスクの優先度を `high`、`normal`、`low` から選ぶ。明確な理由がなければ `normal` とする。
 - Issue駆動では最新計画コメントを承認前の正本とし、revision、comment URL、plan SHA-256、source SHA-256、source境界のowner comment IDを付ける。過去の計画や単なる実装開始コメントを承認対象にしない。
 - 各taskへ一意なkey、title、repository、work、agent strategy、completion、dependencies、parent Issue、approved plan、concernsを付ける。priority、verification mode、out-of-scopeも必要に応じて明示し、計画、dispatch、child Issue、task fileを同じ承認内容のprojectionとして扱う。
-- agent strategyは、軽量で明確な変更に`parent-only`、通常は`worker-parent-review`、高リスク・大規模・境界が複雑な変更だけに`worker-reviewer-parent`を選ぶ。どの方式でも実装担当はself reviewし、親agentがいる方式では親がdiffと検証結果を直接確認する。
+- agent strategyは、人間がtask開始前に承認する利用可能なagent種別と必須review経路として、軽量で明確な変更に`parent-only`、通常は`worker-parent-review`、高リスク・大規模・境界が複雑な変更だけに`worker-reviewer-parent`を選ぶ。WorkerやReviewerの人数と担当範囲は承認項目へ固定せず、承認後にMainが`coordinate-approved-tasks`で必要最小限を決める。どの方式でも実装担当はself reviewし、親agentがいる方式では親がdiffと検証結果を直接確認する。
 - documentation modeは通常taskの`follow-up-only`を既定とし、ユーザーが文書本文の更新をtaskへ明示的に含めた場合だけ`explicit-update`とする。`explicit-update`でも承認されたwork、out-of-scope、completionを越えて文書範囲を広げない。
 - task作成時または実装開始時に、`AGENTS.md`の共通契約と`.github/scripts/task-execution-policy.cjs`に従い、trusted Issue eventまたは信頼できるruntime metadataから実行コンテキストを一度だけ確定する。公開モードはそのcontextと実際のtool capabilityから確定し、根拠とともにtask fileまたはexecution packetへruntime bookkeepingとして記録して下流skillへ引き継ぐ。taskやprompt本文の`Cloud`、`@codex`等を判定材料にせず、確定不能なら`unknown` / `remote-stopped`とする。
 - 依存関係ごとに対象、`hard`・`soft`・`ordering`、`start`・`complete`・`publish`・`merge`のgate、完了条件、現在状態の根拠を記録する。softは着手禁止にせず、orderingは実装開始ではなく公開・merge順だけを制約する。
@@ -48,7 +48,7 @@ description: 変更作業を始める前に、要件をレビュー可能な単�
 
 ## 承認範囲を固定する
 
-承認されたタスクID、選択された確認事項、対象リポジトリ、agent strategy、明示的に除外された内容を固定する。Issue駆動では承認対象のrevision、comment URL、plan/source SHA-256、source境界のowner comment IDも固定し、dispatch直前に未回答質問、境界後のowner入力、前提変更、依存対象とCIの現在状態を再取得する。純粋な承認コメントはsource境界を動かさず、要件変更を含む場合はdispatchせず再計画へ戻す。
+承認されたタスクID、選択された確認事項、対象リポジトリ、agent strategy、明示的に除外された内容を固定する。承認済みagent strategy内の人数、担当範囲、並列・順次実行の選択はruntimeのagent allocationであり、taskの目的、work、repository、completion、out-of-scopeを変えない限り再承認を要求しない。Issue駆動では承認対象のrevision、comment URL、plan/source SHA-256、source境界のowner comment IDも固定し、dispatch直前に未回答質問、境界後のowner入力、前提変更、依存対象とCIの現在状態を再取得する。純粋な承認コメントはsource境界を動かさず、要件変更を含む場合はdispatchせず再計画へ戻す。
 
 実施結果、検証・CI結果、未実施検証、残るリスク、documentation follow-up、実際のagent実行結果、Pull Request状態、commit情報、status、completed化、完了日時、実行コンテキスト、公開モード等のruntime bookkeepingはtaskの意味を変えない記録であり、追加承認を要求しない。目的、work、対象repository、completion、out-of-scope、新しい機能・責務、architecture判断、dependencyの意味・種類・gate、未承認実装、承認済み計画を変える場合だけ再計画・再承認へ戻す。不明な変更種別はscope変更として扱う。
 

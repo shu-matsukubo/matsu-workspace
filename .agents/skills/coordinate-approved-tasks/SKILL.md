@@ -10,7 +10,7 @@ description: ユーザー承認済みtaskを、依存関係、リポジトリ境
 ## 実行条件を確認する
 
 1. 承認されたタスクID、確認事項の回答、除外範囲を固定する。
-2. 承認は、task file作成、branch作成、実装、必要なテストコード追加・更新、検証、self review、承認済みagent strategyのreview、commit、task fileの実施・検証結果更新、completed化、documentation follow-up・残課題・Pull Request状態等の記録までを一連の完了処理として許可する。これらのbookkeepingだけで追加承認を要求しない。目的、work、repository、completion、out-of-scopeその他の承認範囲を変える場合だけ再計画・再承認へ戻す。
+2. 承認は、task file作成、branch作成、実装、必要なテストコード追加・更新、検証、self review、承認済みagent strategyのreview、commit、task fileの実施・検証結果更新、completed化、documentation follow-up・残課題・Pull Request状態等の記録までを一連の完了処理として許可する。承認済みagent strategy内の人数、担当範囲、並列・順次実行の選択を含むbookkeepingだけで追加承認を要求しない。目的、work、repository、completion、out-of-scopeその他の承認範囲を変える場合だけ再計画・再承認へ戻す。
 3. Pull Requestのmergeは許可に含めない。ユーザーの明示的な指示なしにmergeしない。
 4. 承認外の改善や追加変更を見つけた場合は、作業へ混ぜず新しいタスクとして記録する。
 5. 各タスクについて、実装を所有するGitリポジトリと `.agents/tasks/active/` の明示pathを確定する。タスクファイルがまだなければ、親ワークスペースの `.agents/tasks/TEMPLATE.md` から作成し、実装前にそのファイルだけをcommitする。Cloud child Issueではexecution packetのkey、title、repository、work、agent strategy、completion、dependencies、parent Issue、approved plan、concerns、documentation modeを意味変更せず投影し、第二の承認内容を作らない。
@@ -19,18 +19,21 @@ description: ユーザー承認済みtaskを、依存関係、リポジトリ境
 
 ## 割り当てる
 
-- taskのagent strategyを維持する。`parent-only`では親agentが実装とself review、`worker-parent-review`では1つの作業用sub-agentが実装とself reviewを行って親agentが直接review、`worker-reviewer-parent`ではさらに独立review agentが確認してから親agentが最終reviewする。
-- 1つの作業用sub-agentへ、原則として1タスクと1つの責務を割り当てる。Cloud child taskは指定された1repository内だけで完結させる。
-- 同じリポジトリを同時に編集する割り当てを避ける。独立リポジトリのタスクは依存関係がなければ並列化する。
+- taskのagent strategyを利用可能なagent種別と必須review経路として維持する。`parent-only`ではMainが実装とself review、`worker-parent-review`では1人以上のWorkerが実装とself reviewを行ってMainが直接review、`worker-reviewer-parent`ではさらに1人以上の独立Reviewerが確認してからMainが最終reviewする。承認されていない種別を追加しない。
+- Workerを起動する前に、Mainが承認済みtask内の責務境界、独立して完了できる範囲、作業間の依存、変更対象の競合、統合・調整コストを評価し、1人以上の必要最小限のWorker数と担当範囲を決める。行数やtask規模だけで人数を決めない。
+- 独立して完了できる範囲が複数あり、変更対象と責務が競合せず、統合コストが妥当な場合だけ複数Workerを検討する。同一ファイルを複数Workerが大きく変更する場合、強い依存を順次解決する必要がある場合、または統合負荷が利益を上回る場合は分割しない。小さいtaskを並列化のためだけに過剰分割しない。
+- Workerへの担当割当は承認済みtaskを別taskへ再分解するものではない。1人のWorkerへ1つの独立した担当範囲を割り当て、全担当を合わせても承認済みwork、out-of-scope、completionを変えない。Cloud child taskは指定された1repository内だけで完結させる。
+- 同じ作業ツリーやファイルへ競合する変更を同時に行わせない。同じrepository内で並列化する場合は独立worktreeまたは明確に競合しない変更範囲を使い、依存関係がある担当は無理に並列化せず順次実行する。独立repositoryのtaskは依存関係がなければ並列化できる。
 - `start`を止めるhard dependencyが完了したタスクだけを着手可能とし、ユーザーの明示指定、`high`、`normal`、`low`、作成日の古い順で選ぶ。soft dependencyとordering dependencyは実装開始を止めない。`high` のタスクを止めている依存タスクは、記録値を変えず実効的に `high` として扱う。
 - 依存グラフをtaskごとに評価し、一つの未完了依存を理由に独立taskまで停止しない。循環時は単純な依存待ちにせず、経路と解消案をIssueへ報告する。
-- 各依頼にタスクファイルの明示path、対象ファイル、完了条件、禁止事項、必要な検証、agent strategy、branch名、base branchを明記する。
+- 各依頼にタスクファイルの明示path、担当範囲、対象ファイル、他担当との依存と統合点、完了条件、禁止事項、必要な検証、agent strategy、branch名、base branchを明記する。
 - 子リポジトリと `docs` は `develop` をbaseにし、親スーパープロジェクトは `main` をbaseにする。
 - branch名は `codex/<task-file-stem>` とする。
 
 ## 進行を管理する
 
 - サブエージェントには実装と自己レビューを続けさせ、作業可能な疑問は「疑問点メモ」として報告させる。
+- 各Workerの担当範囲、選択理由、実行順、検証、self review、差し戻し結果をagent allocation / agent実行結果としてtask fileへ記録する。このbookkeepingだけで再承認を要求しない。
 - 進行不能な疑問だけを親へ即時エスカレーションさせる。
 - 関係のない変更、既存の未commit変更、別タスクの差分をstageまたは修正させない。
 - 子リポジトリの成果を先にreview・公開し、親gitlinkやlockは子Pull Requestのmerge後に扱う。
@@ -41,11 +44,12 @@ description: ユーザー承認済みtaskを、依存関係、リポジトリ境
 
 ## 親レビューを行う
 
-1. サブエージェントの報告だけでなく、diff、status、検証結果を親が直接確認する。
-2. 要件、リポジトリ境界、文書の正本、テスト範囲に照らしてレビューする。
-3. 修正が必要なら同じタスクとbranchへ具体的に差し戻し、既に公開済みなら同じPull Requestで修正commitと再検証を求める。
-4. 承認範囲を超える問題は別タスクへ分ける。
-5. 合格したタスクは記録済みの公開モードに従って完了処理へ進める。`codex-web-ui`ではcommitと完了報告後、remote tool探索を含むremote操作を試さずCodex Web UIからの公開を案内する。`github-connector`または`local-git-fallback`では`publish-task-pr`へ委譲する。`remote-stopped`では実装完了を報告し、publication contextだけを理由にremote公開を停止する。
+1. Mainが全Workerの成果を統合し、担当間の前提、境界、生成物、検証結果に不整合がないことを確認する。サブエージェントの報告だけでなく、diff、status、検証結果を直接確認する。
+2. `worker-reviewer-parent`ではReviewerを各Workerへ専属配置する必要はない。原則として統合後の差分を対象に、Worker間の整合性、task全体の仕様充足、責務境界、統合後の回帰と検証不足を確認させる。独立したreview範囲が複数ある場合だけ必要最小限のReviewerへ分ける。
+3. Mainが要件、リポジトリ境界、文書の正本、テスト範囲に照らして最終reviewする。統合と完了判断の責任をReviewerへ移さない。
+4. 修正が必要なら同じタスクとbranchへ具体的に差し戻し、既に公開済みなら同じPull Requestで修正commitと再検証を求める。
+5. 承認範囲を超える問題は別タスクへ分ける。
+6. 合格したタスクは記録済みの公開モードに従って完了処理へ進める。`codex-web-ui`ではcommitと完了報告後、remote tool探索を含むremote操作を試さずCodex Web UIからの公開を案内する。`github-connector`または`local-git-fallback`では`publish-task-pr`へ委譲する。`remote-stopped`では実装完了を報告し、publication contextだけを理由にremote公開を停止する。
 
 ## 完了を報告する
 

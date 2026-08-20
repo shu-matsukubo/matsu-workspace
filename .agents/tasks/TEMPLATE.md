@@ -17,6 +17,8 @@
 
 実行コンテキストと公開モードは、`AGENTS.md`の共通契約と`.github/scripts/task-execution-policy.cjs`に従ってtask作成時または実装開始時に一度確定し、下流skillへ引き継ぐruntime bookkeepingである。承認済みplanの意味内容ではなく、確定後に各skillで再判定しない。これらを含む実施結果・検証結果・status・completed化・Pull Request状態等の記録だけでは追加承認を要求せず、目的、work、repository、completion、out-of-scopeその他の承認範囲を変える場合だけ再計画・再承認へ戻る。
 
+agent strategyは人間が承認する利用可能なagent種別と必須review経路であり、人数や担当範囲を固定しない。承認済みagent strategy内のagent allocationはMainが実行時に決定し、実施結果へ記録するruntime bookkeepingである。承認されていないagent種別、またはtaskの目的、work、completion、out-of-scopeを変える担当範囲が必要な場合だけ再計画・再承認へ戻る。
+
 Issue駆動のtask fileはchild Issue execution packetから作る実施記録であり、承認済みplanとは別の要件を追加しない。`key`、`title`、`repository`、`work`、`agent strategy`、`completion`、`dependencies`、`parent Issue`、`approved plan`、`concerns`、`documentation mode`を同じ承認内容のprojectionとして保つ。
 
 ## 目的
@@ -57,4 +59,5 @@ Issue駆動のtask fileはchild Issue execution packetから作る実施記録�
 - ローカル検証: 未実施
 - CI委譲: なし（委譲する場合はworkflow、対象job、未実行であることを記載する）
 - documentation follow-up: なし（通常実装で文書影響があれば対象と理由を記載し、本文は変更しない）
+- agent allocation・実行結果: 未実施（Main、Worker、Reviewerの実人数、担当範囲、self review・統合review結果を記載する）
 - Pull Request: 未作成
