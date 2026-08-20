@@ -15,6 +15,7 @@ description: 変更内容と対象リポジトリに応じた最小十分な品�
 6. 検証モードを`normal`または`issue-ci-delegated`として明示する。通常実行では従来どおり必要な品質ゲートを実行する。
 7. 通常実装taskでdocumentation影響がある場合は本文を変更せず、`documentation follow-up required`の対象と理由が実施結果へ記録されていることを確認する。
 8. task fileまたはtrusted execution packetに開始時点の実行コンテキスト、公開モード、判定根拠が記録され、`.github/scripts/task-execution-policy.cjs`の結果が下流から再判定されていないことを確認する。prompt本文は判定材料にしない。`unknown` / `remote-stopped`でもremote公開以外の検証・review・commitを止めない。
+9. 同policyのtask entry判定を確認する。親Issue Cloudではchild repositoryの実装品質ゲートを選ばず、source・repository境界、Issue・Pull Request状態、dependency graph、task schema、dispatchの検証だけを行う。Cloud child Issueではexecution packet検証後にだけ実装品質ゲートを実行し、Local directでは既存経路を維持する。
 
 ## Issue駆動のCI委譲を判定する
 
@@ -32,9 +33,12 @@ description: 変更内容と対象リポジトリに応じた最小十分な品�
 - DB統合テストは専用のテストDBを使い、通常の開発DB、named volume、別サービスのDBを共有しない。
 - テストのためにsecretや本番認証情報を作成・記録しない。
 - 自動修正コマンドを使った場合はdiffを再確認し、対象外の変更を混入させない。
+- Cloud agent phaseでは、承認済みworkにdependency変更が明記されていない限り、検証準備を目的とする`npm install`、`npm ci`、`npm update`、lockfileだけの再構築、`yarn install`、`pnpm install`、`composer install`、`composer update`等を実行しない。setup済みの既存dependencyで品質ゲートを実行し、新規dependencyが必要ならscope変更として再計画・再承認へ戻す。Local directへこの禁止を適用しない。
 
 ## 結果を記録する
 
 実行したコマンド、成功・失敗、対象範囲をtask fileへbookkeepingとして記録し、この更新だけで追加承認を要求しない。CIへ委譲した項目はworkflow/job、対象コマンド、現在の未実行状態をtask fileとPull Requestへ記録する。環境不足や外部要因で実行できない検証は、未実施理由、代替確認、残るリスクを明示する。失敗を無視して合格扱いにしない。
 
 最後に `git diff --check`、`git status`、baseからのdiffを確認し、生成物、lockfile、意図しないファイルが残っていないことを確認する。
+
+ユーザー向けの検証結果と未実施理由は日本語で記載し、command、identifier、package名、原文エラーはそのまま保持する。

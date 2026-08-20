@@ -63,6 +63,8 @@ pushで認証に失敗した場合や対話認証を求められた場合は、b
 
 remote branchの公開後、GitHubプラグインでdraft Pull Requestを作成する。本文に次を含める。
 
+Pull Requestのtitleと人間向け本文は日本語で記載する。branch・task key・repository・command・identifier・package名、原文エラー、machine-readable markerやJSONは変更しない。
+
 - 対応したタスクと目的
 - 完了済みタスクファイルのpath
 - 主な変更
