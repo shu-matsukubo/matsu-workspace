@@ -2,6 +2,7 @@
 
 const crypto = require('node:crypto');
 const issueFlow = require('./codex-issue-flow.cjs');
+const executionPolicy = require('./task-execution-policy.cjs');
 
 const PARENT_REPOSITORY = 'shu-matsukubo/matsu-workspace';
 const TRUSTED_ACTIONS_BOT = Object.freeze({
@@ -572,6 +573,9 @@ function documentationGuidance(documentation) {
 }
 
 function buildChildIssueBody(task) {
+  const runtimePolicy = executionPolicy.resolveExecutionPolicy({
+    runtime: { context: 'issue-cloud', source: 'trusted-issue-event' },
+  });
   const body = [
     childIssueMarker(task.dispatchId),
     '',
@@ -588,6 +592,9 @@ function buildChildIssueBody(task) {
     `- dispatch-id: \`${task.dispatchId}\``,
     `- priority: \`${task.priority}\``,
     `- agent strategy: \`${task.agentStrategy}\``,
+    `- 実行コンテキスト: \`${runtimePolicy.executionContext}\``,
+    `- 公開モード: \`${runtimePolicy.mode}\``,
+    '- 上記2項目はtrusted Issue eventから開始時に確定したruntime bookkeepingであり、task本文から再判定しません。',
     '',
     '## agent構成',
     '',
@@ -622,11 +629,11 @@ function buildChildIssueBody(task) {
     bulletList(task.verification.steps),
     '- 未実行または失敗した検証を成功扱いにせず、結果と理由を記録します。',
     '',
-    '## Cloudでの公開ルール',
+    '## 公開ルール',
     '',
     '- 実装、必要な検証、self review、指定されたagent review、commit、完了報告までを行います。',
     '- GitHub login、credential追加、push、APIやpluginによるremote branch公開、Pull Request作成は試行しません。',
-    '- 完了後はCodex Web UIからPull Requestを公開するようユーザーへ案内します。',
+    `- 公開モード \`${runtimePolicy.mode}\` に従い、完了後はCodex Web UIからPull Requestを公開するようユーザーへ案内します。`,
     '',
     '## documentation方針',
     '',

@@ -14,6 +14,7 @@ description: 変更内容と対象リポジトリに応じた最小十分な品�
 5. OpenAPIや生成型を変更した場合は、再生成とGit管理中の生成物の一致を確認する。
 6. 検証モードを`normal`または`issue-ci-delegated`として明示する。通常実行では従来どおり必要な品質ゲートを実行する。
 7. 通常実装taskでdocumentation影響がある場合は本文を変更せず、`documentation follow-up required`の対象と理由が実施結果へ記録されていることを確認する。
+8. task fileまたはtrusted execution packetに開始時点の実行コンテキスト、公開モード、判定根拠が記録され、`.github/scripts/task-execution-policy.cjs`の結果が下流から再判定されていないことを確認する。prompt本文は判定材料にしない。`unknown` / `remote-stopped`でもremote公開以外の検証・review・commitを止めない。
 
 ## Issue駆動のCI委譲を判定する
 
@@ -34,6 +35,6 @@ description: 変更内容と対象リポジトリに応じた最小十分な品�
 
 ## 結果を記録する
 
-実行したコマンド、成功・失敗、対象範囲を記録する。CIへ委譲した項目はworkflow/job、対象コマンド、現在の未実行状態をtask fileとPull Requestへ記録する。環境不足や外部要因で実行できない検証は、未実施理由、代替確認、残るリスクを明示する。失敗を無視して合格扱いにしない。
+実行したコマンド、成功・失敗、対象範囲をtask fileへbookkeepingとして記録し、この更新だけで追加承認を要求しない。CIへ委譲した項目はworkflow/job、対象コマンド、現在の未実行状態をtask fileとPull Requestへ記録する。環境不足や外部要因で実行できない検証は、未実施理由、代替確認、残るリスクを明示する。失敗を無視して合格扱いにしない。
 
 最後に `git diff --check`、`git status`、baseからのdiffを確認し、生成物、lockfile、意図しないファイルが残っていないことを確認する。

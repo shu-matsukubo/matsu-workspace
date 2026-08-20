@@ -519,6 +519,9 @@ test('execution packet preserves dependencies and never auto-mentions Codex', ()
   assert.match(body, /実装開始直前に依存対象の現在状態をGitHubから再取得/);
   assert.doesNotMatch(body, /@codex/i);
   assert.match(body, /Codex Web UI/);
+  assert.match(body, /実行コンテキスト: `issue-cloud`/);
+  assert.match(body, /公開モード: `codex-web-ui`/);
+  assert.match(body, /task本文から再判定しません/);
   assert.match(body, /documentation follow-up required/);
 });
 

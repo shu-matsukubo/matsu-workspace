@@ -14,6 +14,10 @@ description: 通常の実装taskでは文書影響をdocumentation follow-upと�
 
 呼び出し元の承認範囲でどちらか確定できない場合は、文書を書き換えずfollow-up記録へ限定する。
 
+documentation modeはtask作成時または実装開始時に確定する。実装後に判明したdocumentation影響は新しい方針ではなく`documentation follow-up required`等の実施結果として記録し、そのbookkeepingだけで追加承認を要求しない。文書本文を新たに更新する、対象文書や責務を広げる、または承認済みwork・out-of-scope・completionを変える場合だけ再計画・再承認へ戻る。
+
+開始時に確定した実行コンテキスト、公開モード、判定根拠は、`AGENTS.md`の共通契約と`.github/scripts/task-execution-policy.cjs`から下流skillへ引き継ぐruntime bookkeepingである。このskillはtask・prompt本文から再判定せず、documentation判断によって公開モードを変更しない。
+
 ## 更新要否を判定する
 
 次のいずれかが変わる場合に文書更新を検討する。

@@ -11,6 +11,11 @@
 - agent strategy: `worker-parent-review` (`parent-only` / `worker-parent-review` / `worker-reviewer-parent`)
 - 検証モード: `normal` (`issue-ci-delegated` を選ぶ場合は既存CIのcoverageを確認する)
 - documentation mode: `follow-up-only`（本文更新がtaskへ明示承認された場合だけ `explicit-update`）
+- 実行コンテキスト: `unknown` (`issue-cloud` / `cloud-direct` / `local-direct` / `unknown`)
+- 公開モード: `remote-stopped` (`codex-web-ui` / `github-connector` / `local-git-fallback` / `remote-stopped`)
+- 実行方針の根拠: `<trusted Issue event / trusted runtime metadata / 実際のtool capability。task・prompt本文は使用しない>`
+
+実行コンテキストと公開モードは、`AGENTS.md`の共通契約と`.github/scripts/task-execution-policy.cjs`に従ってtask作成時または実装開始時に一度確定し、下流skillへ引き継ぐruntime bookkeepingである。承認済みplanの意味内容ではなく、確定後に各skillで再判定しない。これらを含む実施結果・検証結果・status・completed化・Pull Request状態等の記録だけでは追加承認を要求せず、目的、work、repository、completion、out-of-scopeその他の承認範囲を変える場合だけ再計画・再承認へ戻る。
 
 Issue駆動のtask fileはchild Issue execution packetから作る実施記録であり、承認済みplanとは別の要件を追加しない。`key`、`title`、`repository`、`work`、`agent strategy`、`completion`、`dependencies`、`parent Issue`、`approved plan`、`concerns`、`documentation mode`を同じ承認内容のprojectionとして保つ。
 

@@ -11,6 +11,7 @@ description: 承認済み要件に対する変更差分を、正しさ、回帰�
 2. 対象までの `AGENTS.md` と関連README、設計文書を確認する。
 3. `git status` とbaseからのdiffを確認し、対象外のファイルや別タスクの差分を分離する。
 4. Issue駆動では承認済みrevision・plan/source hash・source境界のowner comment IDに加え、dispatch-idとchild Issue execution packetを照合する。計画、dispatch、child Issue、task file、実装差分でkey、repository、work、agent strategy、completion、dependencies、concernsが変わっていないこと、境界後または実装開始後の前提変更や承認範囲外の差分がないことを確認する。
+5. task開始時に確定した実行コンテキスト、公開モード、判定根拠がtask fileまたはtrusted execution packetから下流へ引き継がれ、task・prompt本文から再判定されていないことを確認する。実施・検証結果やcompleted化等のbookkeepingだけをscope変更として扱っていないことも確認する。
 
 ## 重要度順に確認する
 
@@ -26,7 +27,7 @@ description: 承認済み要件に対する変更差分を、正しさ、回帰�
 
 文書の事実は、OpenAPIが存在する契約ではOpenAPIを優先し、それ以外は実装と自動テストで確認する。CIやコマンドはworkflowとmanifestを正本にする。
 
-Issue駆動のCI委譲では、必要なテストコードが差分に含まれること、対象workflowがそのテスト・静的解析・buildを実行すること、未実行項目が成功と記載されていないことを確認する。CI coverageがなければコード変更を合格扱いにしない。Cloudではremote publishやPull Request作成を試行していないこと、Localでは公開前にGitHub plugin優先の手順へ進むことも確認する。
+Issue駆動のCI委譲では、必要なテストコードが差分に含まれること、対象workflowがそのテスト・静的解析・buildを実行すること、未実行項目が成功と記載されていないことを確認する。CI coverageがなければコード変更を合格扱いにしない。公開モードが`codex-web-ui`または`remote-stopped`ならremote publishやPull Request作成を試行していないこと、`github-connector`または`local-git-fallback`なら公開前に`publish-task-pr`の手順へ進むことも確認する。
 
 Pull Request差し戻しのレビューでは、Pull Requestの最新review、未解決thread、inline comment、CI結果と現在コードを正本にし、同じtask・branch・Pull Requestの承認範囲内であることを確認する。解決済みまたは現在コードと一致しない古い指摘を再適用しない。
 
