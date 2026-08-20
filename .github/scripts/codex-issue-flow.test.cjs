@@ -331,11 +331,15 @@ test('protocol defines safe result states and task template preserves the source
   assert.match(protocol, /user\.login=shu-matsukubo/);
   assert.match(protocol, /generic failure commentを冪等にupsert/);
   assert.match(protocol, /`follow-up-only`または`explicit-update`/);
+  assert.match(protocol, /人数と担当範囲はpayloadへ追加せず/);
+  assert.match(protocol, /必要最小限を決め/);
   assert.match(protocol, /state label同期の直前に全コメントを再取得/);
   assert.match(skill, /明示承認した場合だけ`explicit-update`/);
   assert.match(taskTemplate, /承認時source境界owner comment ID:/);
   assert.match(taskTemplate, /タスクキー:/);
   assert.match(taskTemplate, /agent strategy:/);
+  assert.match(taskTemplate, /人数や担当範囲を固定しない/);
+  assert.match(taskTemplate, /agent allocation・実行結果:/);
   assert.match(taskTemplate, /documentation mode:/);
   assert.match(taskTemplate, /`concerns`、`documentation mode`を同じ承認内容のprojection/);
   assert.match(taskTemplate, /## 懸念事項/);

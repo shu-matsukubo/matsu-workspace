@@ -18,7 +18,7 @@
 - 読み取り、調査、説明、レビューだけの依頼には、タスク一覧の事前承認は不要です。
 - ファイル、Git、外部サービスなどへ書き込む依頼は、1件だけでも実装前にレビュー可能なタスク一覧を提示し、ユーザーの明示的な承認を得てください。
 - 承認済みタスクは、そのtaskを完了させる一連の処理として、task file作成、branch作成、実装、必要なテストコード追加・更新、検証、self review、承認済みagent strategyに基づくreview、commit、task fileの実施・検証結果更新、`active`から`completed`への状態更新と移動、documentation follow-up・未実施検証・残課題・実際のagent実行結果・commit・Pull Request状態の記録までを許可します。Local実行では承認範囲内のremote公開とdraft Pull Request作成、Cloud実行ではCodex Web UIへの公開委譲も含みます。mergeは行いません。
-- 実施結果、検証・CI結果、未実施検証、残るリスク、documentation follow-up、実際のagent実行結果、Pull Request状態、commit情報、status、completed化、完了日時など、taskの意味を変えないbookkeepingは承認済み作業の記録であり、追加承認を要求しません。
+- 実施結果、検証・CI結果、未実施検証、残るリスク、documentation follow-up、承認済みagent strategy内の実際の人数・担当範囲、agent実行結果、Pull Request状態、commit情報、status、completed化、完了日時など、taskの意味を変えないbookkeepingは承認済み作業の記録であり、追加承認を要求しません。
 - taskの目的、作業内容の意味、対象repository、完了条件、対象外、新しい機能・責務、architecture判断、dependencyの意味・種類・gate、未承認の追加実装、承認済み計画、または安全性・コスト・責務を大きく変えるagent strategyを変更する必要がある場合だけ、実装を拡張せず再計画・再承認へ戻します。不明な変更種別はscope変更として扱います。
 - documentation modeや公開方針など実装を制御する値はtask作成時または実装開始時に確定します。実装後に判明した文書影響は新しい方針ではなく`documentation follow-up required`等の結果として記録し、そのbookkeepingだけで追加承認を要求しません。
 - タスクブランチは `codex/<task-file-stem>` とします。子モジュールと `docs` のPull Requestは `develop`、親ワークスペースのPull Requestは `main` を向き先とします。
@@ -71,7 +71,8 @@
 
 ## AIの作業フロー
 
-- 各タスクは承認済みのagent strategyに従います。`parent-only`は親agentが実装とself review、`worker-parent-review`は作業用sub-agentの実装・self review後に親review、`worker-reviewer-parent`はさらに独立review agentを挟みます。不要なagentを増やさず、独立したリポジトリまたはworktreeで安全に並列化します。
-- 各担当は実装、必要な検証、自己レビューを完了し、疑問点と検証結果を親エージェントへ報告します。
-- 親エージェントは成果物をレビューし、必要なら差し戻しまたは追加タスク化します。全タスク完了後に、変更内容、検証結果、残課題をユーザーへ提出します。
+- 各タスクは承認済みのagent strategyに従います。agent strategyは人間が承認する利用可能なagent種別と必須review経路であり、人数や担当範囲を固定しません。`parent-only`はMain（親agent）が実装とself review、`worker-parent-review`は1人以上のWorkerによる実装・self review後にMain review、`worker-reviewer-parent`はさらに1人以上の独立Reviewerによるreviewを挟みます。
+- Workerを利用する場合、Mainは責務境界、独立性、依存関係、変更競合、統合コストから1人以上の必要最小限の人数と担当範囲を決めます。行数やtask規模だけで決めず、同一ファイルの大幅変更、強い依存、統合負荷がある作業を無理に並列化せず、小さいtaskを並列化のためだけに過剰分割しません。独立したリポジトリまたはworktreeで安全に進めます。
+- 各Workerは担当範囲の実装、必要な検証、self reviewを完了し、疑問点と検証結果をMainへ報告します。Reviewerは各Workerの専属である必要はなく、統合差分、Worker間の整合性、task全体の仕様充足、責務境界、統合後の問題を確認します。
+- Mainは全成果の統合と最終reviewに責任を持ち、必要なら差し戻しまたは追加タスク化します。全タスク完了後に、変更内容、検証結果、残課題をユーザーへ提出します。
 - 詳細なタスク作成、実装調整、レビュー、検証、文書更新、Pull Request作成の手順は `.agents/skills` を使用します。
