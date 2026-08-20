@@ -76,9 +76,9 @@
 
 - 変更内容: agent strategyを人間が承認するagent種別と必須review経路として維持し、`coordinate-approved-tasks`へ責務境界・独立性・依存・変更競合・統合コストに基づく必要最小限の配員判断を追加した。各Workerのself review、Reviewerの統合観点、Mainの統合・最終review責任をAGENTS、planning・coordination・review Skill、task template、Issue protocolへ反映した。`agentAllocation`をruntime bookkeepingへ追加し、Child Task Dispatcherの自己完結packetと回帰testを更新した。新Skill、agent strategy enum、dispatch schema v1は変更していない。
 - ローカル検証: Node.js syntax check 4件成功。Issue flow、Child Task Dispatcher、task execution policy、dependency、hashのunit testは92/92件成功。Reviewer指摘修正後もdispatcher syntax、同じ92 test、`git diff --check`が成功した。
-- CI委譲: draft Pull Request公開後、既存Parent CIの同じsyntax check、unit test、whitespace checkへ委譲する。現時点では未実行であり、同じCodex task内ではポーリングしない。
+- CI委譲: draft Pull Request #21の既存Parent CIへ同じsyntax check、unit test、whitespace checkを委譲する。現時点では未実行・CI待ちであり、同じCodex task内ではポーリングしない。
 - documentation follow-up: なし。承認範囲内の運用正本である`AGENTS.md`、既存Skill、task template、Issue protocolを更新し、README、DEVELOPMENT、横断`docs`、子repositoryへの影響はない。
 - agent allocation・実行結果: Main 1名、Workerは同時1名の必要最小構成、独立Reviewer 1名を選択した。意味契約とpacket/testの結合が強く変更規模も小さいため複数Workerへ並列分割しなかった。初期Workerが`AGENTS.md`を実装し、ツール適用停滞後に交代Workerへ順次引き継いだが追加の実装差分はなく、Mainが残りを統合した。初期Workerは担当した`AGENTS.md`をself reviewしてfindingsなし。独立Reviewerは統合packetのreview順序逆転を1件指摘し、Mainが「Worker self review → Main統合 → Reviewerが統合差分review → Main最終review」へ修正して順序testを追加した。独立再reviewとMain最終reviewはfindingsなし。
-- commit情報: task作成 `ab31c8a`、実装 `85df5df`。
+- commit情報: task作成 `ab31c8a`、実装 `85df5df`、完了記録 `33c6369`。
 - 残るリスク・未実施検証: 配員契約は文言・policy unit testで検証しており、実際の複数Worker配員と統合を通すE2E testはない。AI運用判断のため固定的な自動化は追加していない。
-- Pull Request: 未作成（task完了commit後、GitHub Connectorで`main`向けdraft Pull Requestを公開する）
+- Pull Request: [#21 承認済みagent種別内で動的配員を可能にする](https://github.com/shu-matsukubo/matsu-workspace/pull/21)を`main`向けdraftで公開。CI待ち。
