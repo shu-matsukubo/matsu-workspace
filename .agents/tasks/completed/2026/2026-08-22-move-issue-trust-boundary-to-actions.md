@@ -92,7 +92,7 @@ GitHub Actionsを親Issue control-planeのtrust boundaryとし、native Codex ru
 - [x] plan、question、revise、approval、dispatch、error、次操作の人間向け出力を日本語で維持する。
 - [x] Node syntax、Issue Flow、execution policy、Dispatcher、revision/hash、dependency、E2E回帰test、workflow YAML、skill validation、`git diff --check`が成功するか、未実施理由を記録する。
 - [x] Worker self review、独立Reviewer review、Main最終reviewを完了する。
-- [ ] commit後、GitHub Connectorでbranchを公開し、`main`向けdraft Pull Requestを作成する。
+- [x] commit後、GitHub Connectorでbranchを公開し、`main`向けdraft Pull Requestを作成する。
 
 ## 実施結果
 
@@ -102,5 +102,6 @@ GitHub Actionsを親Issue control-planeのtrust boundaryとし、native Codex ru
 - CI委譲: なし。既存Parent CIが同じNode構文、5 test file、`git diff --check`を覆うことを確認したが、remote公開前のためCI結果は未取得。
 - documentation follow-up required: READMEとDEVELOPMENT本文は承認範囲外のため変更していない。`README.md`のIssue起動・状態説明、および`DEVELOPMENT.md`のGitHub Issue駆動フロー、承認操作、workflow権限、result marker、実地試験を、exact `/codex approve`、Actions authoritative state、`actions: write`、`workflow_dispatch`、approved-only Dispatcher契約へ更新する別documentation taskが必要。`docs`本文への影響はない。
 - agent allocation・実行結果: Worker 1人がIssue Flow、Dispatcher、policy、tests、明示承認文書を実装してself reviewした。MainはGITHUB_TOKEN起点のIssue commentでDispatcher workflowを起動できない点とmalformed current dispatch時のlabel同期を指摘し、Workerが明示`workflow_dispatch`とmarker非依存failure identityへ修正した。独立Reviewer 1人はquestion / error案内、candidate可視内容との同一性、rerun label修復、authoritative state exact grammarの4点を指摘し、Workerが修正した。Worker再self review、独立Reviewer再review、Main最終reviewはいずれも最終actionable findingなし。
-- commit: task定義 `4d3c604`、実装 `1e92a1d`
-- Pull Request: GitHub Connectorでdraft作成待ち
+- commit: task定義 `4d3c604`、実装 `1e92a1d`、completed記録 `d6d76e1`
+- remote公開: GitHub Connectorで `codex/2026-08-22-move-issue-trust-boundary-to-actions` を公開した。開始時と公開時のremote `main`は `79e268092723defa4d201dc556dc9919dd94c50d`で一致し、local completed commitとConnector上のhead commitはtree SHA `aa6b42437dd3b2758cce67aee21e3f37b44d821f`で一致した。local git push、credential追加、mergeは行っていない。
+- Pull Request: draft [#25](https://github.com/shu-matsukubo/matsu-workspace/pull/25)（base: `main`、head: `codex/2026-08-22-move-issue-trust-boundary-to-actions`）
