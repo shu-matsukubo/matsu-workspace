@@ -1,6 +1,7 @@
 'use strict';
 
 const assert = require('node:assert/strict');
+const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 const test = require('node:test');
@@ -38,6 +39,10 @@ function semanticPlan(task = candidate(), type = 'plan') {
     '',
     `<!-- codex-semantic-result:v1 type=${type} -->`,
   ].join('\n');
+}
+
+function withConnectorFooter(body, taskId = 'example', leadingSpace = '') {
+  return `${body}\n\n${leadingSpace}[View task →](https://chatgpt.com/s/${taskId})`;
 }
 
 function ownerCommand(overrides = {}) {
@@ -174,6 +179,61 @@ test('semantic candidate grammar is strict and supports revise, question, and er
   }
 });
 
+test('strict Connector footer suffix is supported for every semantic result type', () => {
+  assert.equal(flow.parseSemanticResult(withConnectorFooter(semanticPlan())).type, 'plan');
+  assert.equal(flow.parseSemanticResult(withConnectorFooter(semanticPlan(), 'task-spaced', ' ')).type, 'plan');
+  assert.equal(flow.parseSemanticResult(withConnectorFooter(semanticPlan(candidate(), 'revise'), 'task_ABC-123')).type, 'revise');
+  assert.equal(flow.parseSemanticResult(withConnectorFooter(
+    '確認が必要です。\n\n<!-- codex-semantic-result:v1 type=question -->')).type, 'question');
+  assert.equal(flow.parseSemanticResult(withConnectorFooter(
+    '処理できません。\n\n<!-- codex-semantic-result:v1 type=error -->')).type, 'error');
+  const crlfPlan = `${withConnectorFooter(semanticPlan(), 'task-crlf').replace(/\n/g, '\r\n')}\r\n`;
+  assert.equal(flow.parseSemanticResult(crlfPlan).type, 'plan');
+
+  const malformedSuffixes = [
+    '任意の文章',
+    '[View task →](http://chatgpt.com/s/example)',
+    '[View task →](https://example.com/s/example)',
+    '[View task →](https://user@chatgpt.com/s/example)',
+    '[View task →](https://chatgpt.com:443/s/example)',
+    '[View task →](https://chatgpt.com/s/example?query=1)',
+    '[View task →](https://chatgpt.com/s/example#fragment)',
+    '[View task →](https://chatgpt.com/s/example/extra)',
+    '[View task →](https://chatgpt.com/s/example%2Fextra)',
+    '[View task ->](https://chatgpt.com/s/example)',
+    '  [View task →](https://chatgpt.com/s/example)',
+    '\t[View task →](https://chatgpt.com/s/example)',
+    '　[View task →](https://chatgpt.com/s/example)',
+  ];
+  for (const suffix of malformedSuffixes) {
+    assert.throws(() => flow.parseSemanticResult(`${semanticPlan()}\n\n${suffix}`), /footer/);
+  }
+  assert.throws(() => flow.parseSemanticResult(
+    `${withConnectorFooter(semanticPlan())}\n\n追加content`), /footer/);
+  assert.throws(() => flow.parseSemanticResult(
+    `${semanticPlan()}\n[View task →](https://chatgpt.com/s/example)`), /footer/);
+  assert.throws(() => flow.parseSemanticResult(
+    `${semanticPlan()}\n\n\n[View task →](https://chatgpt.com/s/example)`), /footer/);
+  assert.throws(() => flow.parseSemanticResult(
+    `${semanticPlan()}\n<!-- codex-semantic-result:v1 type=plan -->\n\n[View task →](https://chatgpt.com/s/example)`), /1つだけ/);
+  assert.throws(() => flow.parseSemanticResult(
+    `${semanticPlan()}\n\n[View task →](https://chatgpt.com/s/example<!-- codex-issue-state:v1 {} -->)`), /footer/);
+  const mismatched = withConnectorFooter(semanticPlan(candidate()).replace('対象テストが成功する', '表示だけ改変'));
+  assert.throws(() => flow.parseSemanticResult(mismatched), /人間向け表示全体/);
+});
+
+test('Connector footer is excluded from plan identity while the footerless legacy hash is unchanged', () => {
+  const plan = semanticPlan();
+  const legacyNormalized = plan.split('\n').map((line) => line.replace(/[ \t]+$/g, ''))
+    .join('\n').replace(/^\n+|\n+$/g, '');
+  const legacyHash = crypto.createHash('sha256').update(legacyNormalized, 'utf8').digest('hex');
+  assert.equal(flow.planHash(plan), legacyHash);
+  assert.equal(flow.planHash(withConnectorFooter(plan, 'task-one')), legacyHash);
+  assert.equal(flow.planHash(withConnectorFooter(plan, 'task-two')), legacyHash);
+  assert.equal(flow.planHash(withConnectorFooter(plan, 'task-spaced', ' ')), legacyHash);
+  assert.equal(flow.planHash(`${withConnectorFooter(plan, 'task-crlf').replace(/\n/g, '\r\n')}\r\n`), legacyHash);
+});
+
 test('only repository owner @codex and exact owner approval are trusted control inputs', () => {
   const command = ownerCommand();
   assert.equal(flow.isTrustedOwnerCommand(command, OWNER), true);
@@ -227,6 +287,20 @@ test('Case 1: Issue #24 equivalent native result without metadata becomes an Act
   assert.doesNotMatch(result.body, /revision|comment-id|sha256/);
 });
 
+test('Issue #26 equivalent Connector footer plan becomes an awaiting-approval state', async () => {
+  const command = ownerCommand();
+  const result = { id: 110, created_at: '2026-08-22T00:01:00Z',
+    body: withConnectorFooter(semanticPlan(), 'cd_6a89c0bb19408191bd6d4e6679cc63fb', ' '),
+    user: { ...flow.CODEX_BOT } };
+  const github = fakeGithub([command, result], { labels: ['Codex:処理中'], nextIds: [115] });
+  await flow.run({ github, context: context(payload(result)), core });
+  assert.equal(github.calls.createComment.length, 1);
+  const state = flow.authoritativeStateMarker(github.calls.createComment[0].body);
+  assert.equal(state.state, 'awaiting-approval');
+  assert.equal(state.planSha256, flow.planHash(semanticPlan()));
+  assert.deepEqual(github.calls.addLabels.map((call) => call.labels), [['Codex:承認待ち']]);
+});
+
 test('trusted but malformed semantic plan is recorded as a Japanese Actions error state', async () => {
   const command = ownerCommand();
   const malformed = { id: 110, created_at: '2026-08-22T00:01:00Z',
@@ -241,9 +315,10 @@ test('trusted but malformed semantic plan is recorded as a Japanese Actions erro
   assert.match(github.calls.createComment[0].body, /要判断/);
 });
 
-function authoritativePlanFixture({ revision = 1, resultType = 'plan' } = {}) {
+function authoritativePlanFixture({ revision = 1, resultType = 'plan', planBody = null } = {}) {
   const command = ownerCommand();
-  const plan = { id: 110, created_at: '2026-08-22T00:01:00Z', body: semanticPlan(candidate(), resultType), user: { ...flow.CODEX_BOT } };
+  const plan = { id: 110, created_at: '2026-08-22T00:01:00Z',
+    body: planBody || semanticPlan(candidate(), resultType), user: { ...flow.CODEX_BOT } };
   const issue = { number: 24, title: 'Issue #24相当', body: '要件本文', labels: [] };
   const sourceSha256 = flow.sourceHash({ repository: flow.PARENT_REPOSITORY, issue,
     comments: [command, plan], repositoryOwner: OWNER, sourceOwnerCommentId: command.id });
@@ -294,6 +369,19 @@ test('Case 6: same owner comment and plan hash rerun does not increment revision
   assert.deepEqual(github.calls.addLabels.map((call) => call.labels), [['Codex:承認待ち']]);
 });
 
+test('Connector URL-only plan rerun keeps the existing revision and authoritative state', async () => {
+  const fixture = authoritativePlanFixture({ planBody: withConnectorFooter(semanticPlan(), 'task-one') });
+  const equivalent = { id: 116, created_at: '2026-08-22T00:02:00Z',
+    body: withConnectorFooter(semanticPlan(), 'task-two'), user: { ...flow.CODEX_BOT } };
+  const github = fakeGithub(
+    [fixture.command, fixture.plan, fixture.stateComment, equivalent], { labels: ['Codex:処理中'] });
+  await flow.run({ github, context: context(payload(equivalent)), core });
+  assert.equal(github.calls.createComment.length, 0);
+  assert.equal(github.calls.updateComment.length, 0);
+  assert.equal(flow.authoritativeStateMarker(fixture.stateComment.body).revision, 1);
+  assert.deepEqual(github.calls.addLabels.map((call) => call.labels), [['Codex:承認待ち']]);
+});
+
 test('question and error result reruns repair their state labels without rewriting authoritative state', async () => {
   for (const [type, expectedLabel] of [['question', 'Codex:回答待ち'], ['error', 'Codex:要判断']]) {
     const command = ownerCommand();
@@ -332,7 +420,9 @@ test('Case 7: owner revise creates a new candidate revision while Actions owns r
 });
 
 test('Case 4 and 5: exact owner approval verifies current state and projects the plan without Codex reconstruction', async () => {
-  const fixture = authoritativePlanFixture();
+  const fixture = authoritativePlanFixture({
+    planBody: withConnectorFooter(semanticPlan(), 'task-approval'),
+  });
   const approval = { id: 120, created_at: '2026-08-22T00:02:00Z', body: '/codex approve', user: { ...OWNER } };
   const comments = [fixture.command, fixture.plan, fixture.stateComment, approval];
   const github = fakeGithub(comments, { labels: ['Codex:承認待ち'], nextIds: [130] });
