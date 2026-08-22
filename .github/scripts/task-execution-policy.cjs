@@ -153,6 +153,10 @@ function taskGateResult(overrides) {
   return Object.freeze({
     intent: null,
     resultMarkerState: null,
+    resultContract: null,
+    eventType: null,
+    allowsPlanGeneration: false,
+    allowsAuthoritativeState: false,
     allowsImplementation: false,
     allowsDispatch: false,
     allowsDependencyInstall: false,
@@ -189,6 +193,21 @@ function resolveTaskExecutionGate({
       allowsDependencyInstall: true,
       allowsImplementationQualityGates: true,
       dependencyAction: 'use-existing-local-flow',
+    });
+  }
+
+  if (executionContext === 'unknown' && entryKind === 'parent-issue') {
+    return taskGateResult({
+      executionContext,
+      entryKind,
+      intent: 'plan',
+      eventType: 'unknown',
+      nextAction: 'generate-semantic-plan-candidate',
+      resultContract: 'metadata-free-semantic-result-v1',
+      allowsPlanGeneration: true,
+      requiresResultMarker: true,
+      requiresReplanForNewDependency: true,
+      dependencyAction: 'prohibited-in-unverified-issue-entry',
     });
   }
 
@@ -231,7 +250,6 @@ function resolveTaskExecutionGate({
     let intent = handlerIntent;
     let nextAction = `handle-${handlerIntent}`;
     let resultMarkerState = null;
-    let allowsDispatch = false;
 
     if (!handlerEvaluated) {
       intent = null;
@@ -241,9 +259,8 @@ function resolveTaskExecutionGate({
       nextAction = 'plan';
       resultMarkerState = 'plan';
     } else if (handlerIntent === 'dispatch' && planApproved) {
-      nextAction = 'dispatch';
-      resultMarkerState = 'tasks-dispatched';
-      allowsDispatch = true;
+      nextAction = 'await-actions-exact-approval';
+      resultMarkerState = null;
     } else if (handlerIntent === 'dispatch') {
       intent = 'unknown';
       nextAction = 'await-explicit-approval';
@@ -263,7 +280,9 @@ function resolveTaskExecutionGate({
       intent,
       nextAction,
       resultMarkerState,
-      allowsDispatch,
+      resultContract: 'metadata-free-semantic-result-v1',
+      allowsPlanGeneration: intent === 'plan' || intent === 'answer' || intent === 'revise',
+      allowsDispatch: false,
       requiresIssueHandler: true,
       requiresResultMarker: true,
       requiresReplanForNewDependency: true,

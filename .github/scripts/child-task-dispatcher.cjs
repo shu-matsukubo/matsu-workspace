@@ -1,30 +1,16 @@
 'use strict';
 
-const crypto = require('node:crypto');
 const issueFlow = require('./codex-issue-flow.cjs');
 const executionPolicy = require('./task-execution-policy.cjs');
 
-const PARENT_REPOSITORY = 'shu-matsukubo/matsu-workspace';
-const TRUSTED_ACTIONS_BOT = Object.freeze({
-  login: 'github-actions[bot]',
-  id: 41898282,
-  type: 'Bot',
-});
+const PARENT_REPOSITORY = issueFlow.PARENT_REPOSITORY;
+const TRUSTED_ACTIONS_BOT = issueFlow.ACTIONS_BOT;
 const TRUSTED_CHILD_ISSUE_CREATOR = Object.freeze({
   login: 'shu-matsukubo',
   type: 'User',
   authorAssociation: 'OWNER',
 });
-const ALLOWED_REPOSITORIES = Object.freeze([
-  'shu-matsukubo/matsu-front',
-  'shu-matsukubo/matsu-bff',
-  'shu-matsukubo/matsu-api',
-  'shu-matsukubo/matsu-auth',
-  'shu-matsukubo/matsu-toolbox-api',
-  'shu-matsukubo/matsu-arcade-auth',
-  'shu-matsukubo/matsu-arcade-api',
-  'shu-matsukubo/matsu-docs',
-]);
+const ALLOWED_REPOSITORIES = issueFlow.ALLOWED_REPOSITORIES;
 const ALLOWED_REPOSITORY_SET = new Set(ALLOWED_REPOSITORIES);
 const AGENT_STRATEGIES = new Set([
   'parent-only',
@@ -38,7 +24,6 @@ const DEPENDENCY_TYPES = new Set(['hard', 'soft', 'ordering']);
 const DEPENDENCY_GATES = new Set(['start', 'complete', 'publish', 'merge']);
 const DISPATCH_OPEN = '<!-- codex-task-dispatch:v1';
 const DISPATCH_CLOSE = '<!-- /codex-task-dispatch:v1 -->';
-const DISPATCH_RESULT_PATTERN = /^<!-- codex-issue-flow state=tasks-dispatched revision=\d+ handled-owner-comment-id=\d+ source-owner-comment-id=\d+ source-sha256=[a-f0-9]{64} plan-sha256=[a-f0-9]{64} -->$/;
 const CHILD_MARKER_PREFIX = '<!-- codex-child-task-dispatch:v1 ';
 const TRACKING_MARKER_PREFIX = '<!-- codex-child-task-tracking:v1 ';
 const PREPARATION_FAILURE_MARKER_PREFIX = '<!-- codex-child-task-prepare-failure:v1 ';
@@ -215,12 +200,10 @@ function parseDispatchCommentEnvelope(body) {
   }
 
   const resultText = normalized.slice(cursor);
-  if (!DISPATCH_RESULT_PATTERN.test(resultText)) {
-    throw new Error('dispatch comment末尾のresult markerまたは全体grammarが不正です。');
-  }
-  const marker = issueFlow.resultMarker(resultText);
-  if (!marker || !issueFlow.isValidResultMarker(marker)) {
-    throw new Error('dispatch commentのresult markerが不正です。');
+  const marker = issueFlow.dispatchMarker(resultText);
+  if (!marker || !resultText.startsWith('<!-- codex-actions-dispatch:v1 ')
+      || !resultText.endsWith(' -->') || resultText.includes('\n')) {
+    throw new Error('dispatch comment末尾のActions markerまたは全体grammarが不正です。');
   }
   if (rawBlocks.length === 0) throw new Error('codex-task-dispatch blockがありません。');
   return { rawBlocks, marker };
@@ -236,7 +219,7 @@ function validateTaskDispatchBlocks(rawBlocks, expected) {
       throw new Error('codex-task-dispatch payloadが正しいJSONではありません。');
     }
     const human = raw.human;
-    const expectedHeading = `## ${task && task.key}: ${task && task.title}`;
+    const expectedHeading = `## ${task && task.key}: ${task && task.title && issueFlow.renderVisibleText(task.title)}`;
     if (!human || human.split('\n', 1)[0] !== expectedHeading) {
       throw new Error('codex-task-dispatchの人間向け見出しがmachine payloadと一致しません。');
     }
@@ -262,20 +245,16 @@ function parseTaskDispatchBlocks(body, expected) {
 }
 
 function planHash(body) {
-  const normalized = normalizeText(body)
-    .split('\n')
-    .filter((line) => !/^\s*<!-- codex-issue-flow state=.+ -->\s*$/.test(line))
-    .map((line) => line.replace(/[ \t]+$/g, ''))
-    .join('\n')
-    .replace(/^\n+|\n+$/g, '');
-  return crypto.createHash('sha256').update(normalized, 'utf8').digest('hex');
+  return issueFlow.planHash(body);
 }
 
 function samePlanIdentity(marker, approvedPlan) {
   return marker.revision === approvedPlan.revision
     && marker.planSha256 === approvedPlan.planSha256
     && marker.sourceSha256 === approvedPlan.sourceSha256
-    && marker.sourceOwnerCommentId === approvedPlan.sourceOwnerCommentId;
+    && marker.sourceOwnerCommentId === approvedPlan.sourceOwnerCommentId
+    && (approvedPlan.planCommentId === undefined
+      || marker.planCommentId === approvedPlan.planCommentId);
 }
 
 function compareComments(left, right) {
@@ -291,107 +270,52 @@ function compareComments(left, right) {
   return leftTime - rightTime || left.id - right.id;
 }
 
-function freshTrustedEventComment(comments, context) {
-  if (!isTrustedParentDispatchEvent(context)) return null;
-  const eventComment = context.payload.comment;
-  const fresh = comments.find((comment) => comment.id === eventComment.id);
-  if (!issueFlow.isTrustedCodexComment(fresh)
-      || compareComments(fresh, eventComment) !== 0
-      || normalizeText(fresh.body) !== normalizeText(eventComment.body)) return null;
-  return fresh;
+function workflowDispatchRequest(context) {
+  const payload = context && context.payload ? context.payload : {};
+  const inputs = payload.inputs || {};
+  if (!context || context.eventName !== 'workflow_dispatch'
+      || !payload.repository || payload.repository.full_name !== PARENT_REPOSITORY
+      || !/^[1-9]\d*$/.test(inputs.issue_number || '')
+      || !/^[1-9]\d*$/.test(inputs.dispatch_comment_id || '')) return null;
+  const issueNumber = Number(inputs.issue_number);
+  const dispatchCommentId = Number(inputs.dispatch_comment_id);
+  if (!Number.isSafeInteger(issueNumber) || !Number.isSafeInteger(dispatchCommentId)) return null;
+  return { issueNumber, dispatchCommentId };
+}
+
+function trustedDispatchCommentForRequest(comments, context) {
+  const request = workflowDispatchRequest(context);
+  if (!request) return null;
+  const comment = comments.find((candidate) => candidate.id === request.dispatchCommentId);
+  return issueFlow.isTrustedActionsComment(comment) ? comment : null;
 }
 
 function isCurrentTrustedDispatchResult(comments, context) {
-  const eventComment = freshTrustedEventComment(comments, context);
+  const eventComment = trustedDispatchCommentForRequest(comments, context);
   const repositoryOwner = context.payload.repository && context.payload.repository.owner;
   if (!eventComment || !repositoryOwner) return false;
-  const marker = issueFlow.resultMarker(eventComment.body);
-  if (!marker || marker.state !== 'tasks-dispatched' || !issueFlow.isValidResultMarker(marker)
-      || !issueFlow.hasTrustedSourceBoundary(marker, comments, repositoryOwner)) return false;
-  const latestOwnerCommand = comments
-    .filter((comment) => issueFlow.isTrustedOwnerCommand(comment, repositoryOwner))
-    .sort(compareComments)
-    .at(-1);
-  if (!latestOwnerCommand || latestOwnerCommand.id !== marker.handledOwnerCommentId) return false;
-  const latestResult = issueFlow.latestTrustedResult(comments, latestOwnerCommand.id, repositoryOwner);
-  return Boolean(latestResult && latestResult.comment.id === eventComment.id);
+  const marker = issueFlow.dispatchMarker(eventComment.body);
+  const authoritative = issueFlow.latestAuthoritativeState(comments);
+  const stateMatches = marker && authoritative && samePlanIdentity(marker, authoritative.state)
+    && authoritative.state.approvalCommentId === marker.approvalCommentId
+    && authoritative.state.state === 'approved'
+    && authoritative.state.dispatchCommentId === eventComment.id;
+  if (!stateMatches) return false;
+  const latestOwner = issueFlow.latestRepositoryOwnerComment(comments, repositoryOwner);
+  return Boolean(latestOwner && latestOwner.id === marker.approvalCommentId
+    && issueFlow.isTrustedOwnerApproval(latestOwner, repositoryOwner));
 }
 
 function isCurrentPreparationFailure(comments, context) {
-  const eventComment = freshTrustedEventComment(comments, context);
+  const dispatchComment = trustedDispatchCommentForRequest(comments, context);
   const repositoryOwner = context.payload.repository && context.payload.repository.owner;
-  if (!eventComment || !repositoryOwner) return false;
-  const marker = issueFlow.resultMarker(eventComment.body);
-  if (marker && marker.state === 'tasks-dispatched' && issueFlow.isValidResultMarker(marker)
-      && issueFlow.hasTrustedSourceBoundary(marker, comments, repositoryOwner)) {
-    return isCurrentTrustedDispatchResult(comments, context);
-  }
-  const hasNewerOwnerCommand = comments.some((comment) =>
-    issueFlow.isTrustedOwnerCommand(comment, repositoryOwner)
-      && compareComments(eventComment, comment) < 0);
-  const hasNewerTrustedResult = comments.some((comment) => {
-    if (!issueFlow.isTrustedCodexComment(comment)
-        || compareComments(eventComment, comment) >= 0) return false;
-    const candidate = issueFlow.resultMarker(comment.body);
-    return issueFlow.isValidResultMarker(candidate)
-      && issueFlow.hasTrustedSourceBoundary(candidate, comments, repositoryOwner);
-  });
-  return !hasNewerOwnerCommand && !hasNewerTrustedResult;
-}
-
-function findApprovedPlanComment(
-  comments,
-  handledOwnerComment,
-  dispatchComment,
-  dispatchMarker,
-  repositoryOwner,
-) {
-  const planResults = comments
-    .filter(issueFlow.isTrustedCodexComment)
-    .filter((comment) => compareComments(comment, dispatchComment) < 0)
-    .map((comment) => ({ comment, marker: issueFlow.resultMarker(comment.body) }))
-    .filter(({ comment, marker }) => marker
-      && countOccurrences(comment.body, '<!-- codex-issue-flow ') === 1
-      && marker.state === 'plan'
-      && issueFlow.isValidResultMarker(marker)
-      && issueFlow.hasTrustedSourceBoundary(marker, comments, repositoryOwner)
-      && (() => {
-        const planRequest = comments.find((candidate) => candidate.id === marker.handledOwnerCommentId);
-        return issueFlow.isTrustedOwnerCommand(planRequest, repositoryOwner)
-          && compareComments(planRequest, comment) < 0;
-      })()
-      && planHash(comment.body) === marker.planSha256);
-  if (planResults.length === 0) throw new Error('信頼できる承認対象plan commentがありません。');
-  const maximumRevision = Math.max(...planResults.map(({ marker }) => marker.revision));
-  const latestRevisionPlans = planResults.filter(({ marker }) => marker.revision === maximumRevision);
-  const identities = new Set(latestRevisionPlans.map(({ marker }) => [
-    marker.revision, marker.planSha256, marker.sourceSha256, marker.sourceOwnerCommentId,
-  ].join(':')));
-  if (identities.size !== 1) throw new Error('最新plan revisionのhashまたはsource境界が競合しています。');
-  const approvedPlan = {
-    revision: dispatchMarker.revision,
-    planSha256: dispatchMarker.planSha256,
-    sourceSha256: dispatchMarker.sourceSha256,
-    sourceOwnerCommentId: dispatchMarker.sourceOwnerCommentId,
-  };
-  if (!latestRevisionPlans.some(({ marker }) => samePlanIdentity(marker, approvedPlan))) {
-    throw new Error('dispatch resultが最新の信頼できるplanを参照していません。');
-  }
-  const selected = latestRevisionPlans
-    .filter(({ marker }) => samePlanIdentity(marker, approvedPlan))
-    .sort((left, right) => compareComments(left.comment, right.comment))
-    .at(-1);
-  if (!selected || compareComments(selected.comment, handledOwnerComment) >= 0
-      || compareComments(handledOwnerComment, dispatchComment) >= 0) {
-    throw new Error('plan、承認owner comment、dispatch commentの時系列が不正です。');
-  }
-  return approvedPlan;
-}
-
-function commentsIncludingPayload(listed, payloadComment) {
-  return listed.some((comment) => comment.id === payloadComment.id)
-    ? listed
-    : [...listed, payloadComment];
+  if (!dispatchComment || !repositoryOwner) return false;
+  const authoritative = issueFlow.latestAuthoritativeState(comments);
+  if (!authoritative || authoritative.state.state !== 'approved'
+      || authoritative.state.dispatchCommentId !== dispatchComment.id) return false;
+  const latestOwner = issueFlow.latestRepositoryOwnerComment(comments, repositoryOwner);
+  return Boolean(latestOwner && latestOwner.id === authoritative.state.approvalCommentId
+    && issueFlow.isTrustedOwnerApproval(latestOwner, repositoryOwner));
 }
 
 async function listAllComments(github, owner, repo, issueNumber) {
@@ -403,52 +327,88 @@ async function listAllComments(github, owner, repo, issueNumber) {
   });
 }
 
-function isTrustedParentDispatchEvent(context) {
-  const payload = context && context.payload ? context.payload : {};
-  return context && context.eventName === 'issue_comment'
-    && payload.action === 'created'
-    && !(payload.issue && payload.issue.pull_request)
-    && payload.repository
-    && payload.repository.full_name === PARENT_REPOSITORY
-    && issueFlow.isTrustedCodexComment(payload.comment);
-}
-
 async function prepareDispatch({ github, context, core }) {
   const payload = context.payload || {};
-  if (!isTrustedParentDispatchEvent(context)) return null;
-  const body = normalizeText(payload.comment && payload.comment.body);
-  if (!body.includes('<!-- codex-task-dispatch')
-      && !body.includes('<!-- codex-issue-flow state=tasks-dispatched')) return null;
+  const request = workflowDispatchRequest(context);
+  if (!request) return null;
+  const { issueNumber } = request;
+  const [owner, repo] = PARENT_REPOSITORY.split('/');
+  const issueResponse = await github.rest.issues.get({ owner, repo, issue_number: issueNumber });
+  if (!issueResponse.data || issueResponse.data.pull_request) {
+    throw new Error('workflow_dispatch inputは親Issueを指す必要があります。');
+  }
+  const comments = await listAllComments(github, owner, repo, issueNumber);
+  const freshDispatch = trustedDispatchCommentForRequest(comments, context);
+  if (!freshDispatch) return null;
+  const authoritative = issueFlow.latestAuthoritativeState(comments);
+  if (!authoritative || authoritative.state.state !== 'approved'
+      || authoritative.state.dispatchCommentId !== freshDispatch.id) return null;
+  const body = normalizeText(freshDispatch.body);
   const envelope = parseDispatchCommentEnvelope(body);
   const { marker } = envelope;
-
-  const [owner, repo] = PARENT_REPOSITORY.split('/');
-  const issueNumber = payload.issue && payload.issue.number;
-  if (!Number.isSafeInteger(issueNumber) || issueNumber < 1) throw new Error('親Issue番号が不正です。');
-  const listed = await listAllComments(github, owner, repo, issueNumber);
-  const comments = commentsIncludingPayload(listed, payload.comment);
-  const latestOwnerCommand = issueFlow.latestTrustedOwnerCommand(comments, payload.repository.owner);
-  if (!latestOwnerCommand || latestOwnerCommand.id !== marker.handledOwnerCommentId) {
-    throw new Error('dispatch resultが最新のrepository owner commandに対応していません。');
+  const stateMatchesDispatch = authoritative
+    && samePlanIdentity(marker, authoritative.state)
+    && authoritative.state.state === 'approved'
+    && authoritative.state.dispatchCommentId === freshDispatch.id
+    && authoritative.state.approvalCommentId === marker.approvalCommentId;
+  if (!stateMatchesDispatch) {
+    throw new Error('dispatchが最新のActions authoritative approved stateと一致しません。');
   }
-  if (compareComments(latestOwnerCommand, payload.comment) >= 0) {
-    throw new Error('承認owner commentはdispatch commentより前である必要があります。');
+  const approvalComment = comments.find((comment) => comment.id === marker.approvalCommentId);
+  const sourceComment = comments.find((comment) => comment.id === marker.sourceOwnerCommentId);
+  const planComment = comments.find((comment) => comment.id === marker.planCommentId);
+  const repositoryOwner = payload.repository.owner;
+  if (!issueFlow.isTrustedOwnerApproval(approvalComment, repositoryOwner)
+      || !issueFlow.isTrustedOwnerCommand(sourceComment, repositoryOwner)
+      || !issueFlow.isTrustedCodexComment(planComment)) {
+    throw new Error('source、plan、approvalのauthorを検証できません。');
   }
-  if (!issueFlow.hasTrustedSourceBoundary(marker, comments, payload.repository.owner)) {
-    throw new Error('dispatch resultのsource境界が信頼できません。');
+  if (compareComments(sourceComment, planComment) >= 0
+      || compareComments(planComment, approvalComment) >= 0
+      || compareComments(approvalComment, freshDispatch) >= 0) {
+    throw new Error('source、plan、approval、dispatchの時系列が不正です。');
   }
-  const approvedPlan = findApprovedPlanComment(
+  const interveningOwnerComment = comments.find((comment) => issueFlow.isRepositoryOwnerComment(comment, repositoryOwner)
+    && !issueFlow.isTrustedOwnerApproval(comment, repositoryOwner)
+    && compareComments(sourceComment, comment) < 0 && compareComments(comment, approvalComment) < 0);
+  const latestOwner = issueFlow.latestRepositoryOwnerComment(comments, repositoryOwner);
+  if (interveningOwnerComment || !latestOwner || latestOwner.id !== approvalComment.id
+      || !issueFlow.isTrustedOwnerApproval(latestOwner, repositoryOwner)) {
+    throw new Error('dispatchが要件変更のない最新repository owner approvalに対応していません。');
+  }
+  const semantic = issueFlow.parseSemanticResult(planComment.body);
+  if (!semantic || !['plan', 'revise'].includes(semantic.type)
+      || planHash(planComment.body) !== marker.planSha256) {
+    throw new Error('Actions authoritative stateのplan commentが改変または不正です。');
+  }
+  const currentSourceHash = issueFlow.sourceHash({
+    repository: PARENT_REPOSITORY,
+    issue: issueResponse.data,
     comments,
-    latestOwnerCommand,
-    payload.comment,
-    marker,
-    payload.repository.owner,
-  );
+    repositoryOwner,
+    sourceOwnerCommentId: marker.sourceOwnerCommentId,
+  });
+  if (currentSourceHash !== marker.sourceSha256) {
+    throw new Error('Actions authoritative stateのsource hashが現在のIssue stateと一致しません。');
+  }
+  const approvedPlan = {
+    revision: marker.revision,
+    planSha256: marker.planSha256,
+    sourceSha256: marker.sourceSha256,
+    sourceOwnerCommentId: marker.sourceOwnerCommentId,
+  };
   const expected = {
     parentIssue: { repository: PARENT_REPOSITORY, number: issueNumber },
     approvedPlan,
   };
   const blocks = validateTaskDispatchBlocks(envelope.rawBlocks, expected);
+  const projectedTasks = semantic.candidates.map((candidate) =>
+    issueFlow.projectCandidate(candidate, authoritative.state, issueNumber));
+  if (projectedTasks.length !== blocks.length
+      || projectedTasks.some((task, index) =>
+        issueFlow.canonicalJson(task) !== issueFlow.canonicalJson(blocks[index].task))) {
+    throw new Error('dispatch taskが承認済みcandidate planの一対一projectionではありません。');
+  }
   const prepared = {
     version: 1,
     parentIssue: {
@@ -506,13 +466,9 @@ function trackingMarker(prepared) {
 }
 
 function preparationFailureMarker(context) {
-  if (!isTrustedParentDispatchEvent(context)) throw new Error('信頼できるparent dispatch eventではありません。');
-  const payload = context.payload;
-  if (!Number.isSafeInteger(payload.issue && payload.issue.number) || payload.issue.number < 1
-      || !Number.isSafeInteger(payload.comment && payload.comment.id) || payload.comment.id < 1) {
-    throw new Error('parent Issueまたはdispatch commentの識別子が不正です。');
-  }
-  return `${PREPARATION_FAILURE_MARKER_PREFIX}parent=${PARENT_REPOSITORY}#${payload.issue.number} dispatch-comment-id=${payload.comment.id} -->`;
+  const request = workflowDispatchRequest(context);
+  if (!request) throw new Error('信頼できるworkflow_dispatch inputではありません。');
+  return `${PREPARATION_FAILURE_MARKER_PREFIX}parent=${PARENT_REPOSITORY}#${request.issueNumber} dispatch-comment-id=${request.dispatchCommentId} -->`;
 }
 
 function buildPreparationFailureBody(context) {
@@ -853,11 +809,14 @@ async function upsertTrackingComment({ github, prepared, result, context, core }
 }
 
 async function upsertPreparationFailure({ github, context, core }) {
-  if (!isTrustedParentDispatchEvent(context)) return null;
-  const payload = context.payload;
+  const request = workflowDispatchRequest(context);
+  if (!request) return null;
   const [owner, repo] = PARENT_REPOSITORY.split('/');
-  const issueNumber = payload.issue.number;
+  const issueNumber = request.issueNumber;
+  const issueResponse = await github.rest.issues.get({ owner, repo, issue_number: issueNumber });
+  if (!issueResponse.data || issueResponse.data.pull_request) return null;
   const comments = await listAllComments(github, owner, repo, issueNumber);
+  if (!isCurrentPreparationFailure(comments, context)) return null;
   const marker = preparationFailureMarker(context);
   const existing = comments
     .filter(isTrustedActionsComment)

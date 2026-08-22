@@ -1,9 +1,13 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import { canonicalSource, compareOrdinal, normalizePlan, planHash, sourceHash } from './hash-issue-state.mjs';
+
+const require = createRequire(import.meta.url);
+const issueFlow = require('../../../../.github/scripts/codex-issue-flow.cjs');
 
 function fixture() {
   return {
@@ -72,11 +76,11 @@ test('source boundary must identify exactly one owner comment', () => {
   assert.throws(() => canonicalSource(duplicate), /一意に特定/);
 });
 
-test('plan hash excludes its result marker and normalizes newlines and trailing spaces', () => {
-  const hash = 'a'.repeat(64);
-  const marker = `<!-- codex-issue-flow state=plan revision=1 handled-owner-comment-id=2 source-owner-comment-id=2 source-sha256=${hash} plan-sha256=${hash} -->`;
-  assert.equal(normalizePlan(`計画  \r\n\r\n${marker}\r\n`), '計画');
-  assert.equal(planHash(`計画\n${marker}`), planHash('計画'));
+test('plan hash covers the metadata-free semantic contract and normalizes whitespace only', () => {
+  const marker = '<!-- codex-semantic-result:v1 type=plan -->';
+  assert.equal(normalizePlan(`計画  \r\n\r\n${marker}\r\n`), `計画\n\n${marker}`);
+  assert.equal(planHash(`計画\r\n${marker}\r\n`), planHash(`計画\n${marker}`));
+  assert.notEqual(planHash(`計画\n${marker}`), planHash('計画'));
 });
 
 test('CLI hashes source JSON and plan text from stdin', () => {
@@ -114,4 +118,25 @@ test('dependency projection order does not change source hash', () => {
   reversed.dependencies.reverse();
   assert.equal(sourceHash(input), sourceHash(reversed));
   assert.equal(canonicalSource(input), canonicalSource(reversed));
+});
+
+test('Actions CJS source canonicalization matches the shared helper without dependency projections', () => {
+  const input = fixture();
+  input.dependencies = [];
+  input.ownerComments.find((comment) => comment.id === input.sourceOwnerCommentId).body = '@codex 計画してください';
+  const owner = { id: 10, login: 'owner', type: 'User' };
+  const comments = input.ownerComments.map((comment) => ({
+    id: comment.id,
+    created_at: comment.createdAt,
+    body: comment.body,
+    user: { ...owner },
+  }));
+  const actual = issueFlow.sourceHash({
+    repository: input.issue.repository,
+    issue: { ...input.issue, labels: input.labels },
+    comments,
+    repositoryOwner: owner,
+    sourceOwnerCommentId: input.sourceOwnerCommentId,
+  });
+  assert.equal(actual, sourceHash(input));
 });
