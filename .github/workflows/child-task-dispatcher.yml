@@ -1,22 +1,27 @@
 name: Child Task Dispatcher
 
 on:
-  issue_comment:
-    types:
-      - created
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: Parent Issue number
+        required: true
+        type: string
+      dispatch_comment_id:
+        description: Trusted Actions dispatch comment ID
+        required: true
+        type: string
 
 permissions:
   contents: read
   issues: write
 
 concurrency:
-  group: child-task-dispatch-${{ github.repository_id }}-${{ github.event.issue.number }}
+  group: child-task-dispatch-${{ github.repository_id }}-${{ inputs.issue_number }}
 
 jobs:
   dispatch:
-    if: >-
-      github.repository == 'shu-matsukubo/matsu-workspace' &&
-      github.event.issue.pull_request == null
+    if: github.repository == 'shu-matsukubo/matsu-workspace'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout default branch dispatcher

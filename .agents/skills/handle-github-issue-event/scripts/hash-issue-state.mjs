@@ -97,7 +97,6 @@ export function sourceHash(input) {
 export function normalizePlan(body) {
   return normalizeText(body)
     .split('\n')
-    .filter((line) => !/^\s*<!-- codex-issue-flow state=.+ -->\s*$/.test(line))
     .map((line) => line.replace(/[ \t]+$/g, ''))
     .join('\n')
     .replace(/^\n+|\n+$/g, '');

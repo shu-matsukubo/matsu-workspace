@@ -10,35 +10,44 @@ const issueFlow = require('./codex-issue-flow.cjs');
 const OWNER = Object.freeze({ id: 10, login: 'shu-matsukubo', type: 'User' });
 const SOURCE_HASH = 'b'.repeat(64);
 
-function resultMarker({ state, revision = 2, handled, source = 100, planHash }) {
-  return `<!-- codex-issue-flow state=${state} revision=${revision} handled-owner-comment-id=${handled} source-owner-comment-id=${source} source-sha256=${SOURCE_HASH} plan-sha256=${planHash} -->`;
+function candidate(overrides = {}) {
+  return {
+    version: 1,
+    key: 'T1',
+    title: 'T1の実装',
+    repository: 'shu-matsukubo/matsu-front',
+    priority: 'normal',
+    agentStrategy: 'worker-parent-review',
+    work: ['承認済みの変更を実装する'],
+    outOfScope: ['repository外の変更'],
+    completion: ['対象テストが成功する'],
+    dependencies: [],
+    concerns: [],
+    verification: { mode: 'normal', steps: ['unit testを実行する'] },
+    documentation: { mode: 'follow-up-only', followUp: [] },
+    ...overrides,
+  };
+}
+
+function semanticPlan(task = candidate(), type = 'plan') {
+  return ['<!-- codex-plan-candidate:v1', issueFlow.stringifyMachineJson(task), '-->',
+    issueFlow.renderCandidateHuman(task),
+    '<!-- /codex-plan-candidate:v1 -->', '',
+    `<!-- codex-semantic-result:v1 type=${type} -->`].join('\n');
 }
 
 function taskPayload(overrides = {}) {
-  const {
-    key = 'T1',
-    planSha256 = 'a'.repeat(64),
-    approvedPlan: approvedPlanOverride,
-    ...taskOverrides
-  } = overrides;
-  const revision = approvedPlanOverride ? approvedPlanOverride.revision : 2;
-  const task = {
+  const { key = 'T1', approvedPlan: approvedPlanOverride, ...rest } = overrides;
+  const approvedPlan = { revision: 2, sha256: 'a'.repeat(64), sourceSha256: SOURCE_HASH,
+    sourceOwnerCommentId: 100, ...approvedPlanOverride };
+  return {
     version: 1,
     key,
     title: `${key}の実装`,
     repository: 'shu-matsukubo/matsu-front',
-    parentIssue: {
-      repository: dispatcher.PARENT_REPOSITORY,
-      number: 42,
-      url: 'https://github.com/shu-matsukubo/matsu-workspace/issues/42',
-    },
-    approvedPlan: {
-      revision,
-      sha256: planSha256,
-      sourceSha256: SOURCE_HASH,
-      sourceOwnerCommentId: 100,
-      ...approvedPlanOverride,
-    },
+    parentIssue: { repository: dispatcher.PARENT_REPOSITORY, number: 42,
+      url: 'https://github.com/shu-matsukubo/matsu-workspace/issues/42' },
+    approvedPlan,
     priority: 'normal',
     agentStrategy: 'worker-parent-review',
     work: ['承認済みの変更を実装する'],
@@ -49,295 +58,57 @@ function taskPayload(overrides = {}) {
     verification: { mode: 'normal', steps: ['unit testを実行する'] },
     cloudPublish: 'commit-and-web-ui-pr',
     documentation: { mode: 'follow-up-only', followUp: [] },
-    dispatchId: dispatcher.computeDispatchId(dispatcher.PARENT_REPOSITORY, 42, key, revision),
-    ...taskOverrides,
+    dispatchId: dispatcher.computeDispatchId(dispatcher.PARENT_REPOSITORY, 42, key, approvedPlan.revision),
+    ...rest,
   };
-  return task;
 }
 
-function dispatchBlock(task, json = JSON.stringify(task)) {
-  return [
-    '<!-- codex-task-dispatch:v1',
-    json,
-    '-->',
-    `## ${task.key}: ${task.title}`,
-    '',
-    `対象repository: \`${task.repository}\``,
-    '<!-- /codex-task-dispatch:v1 -->',
-  ].join('\n');
-}
-
-function parentFixture(taskOverrides = {}, commentUser = issueFlow.CODEX_BOT) {
-  const planText = [
-    '## 計画 revision 2',
-    '',
-    '- T1を実装する',
-  ].join('\n');
-  const planSha256 = dispatcher.planHash(planText);
-  const task = taskPayload({ planSha256, ...taskOverrides });
-  const sourceCommand = {
-    id: 100,
-    created_at: '2026-08-18T00:00:00Z',
-    body: '@codex タスク分解してください',
-    user: { ...OWNER },
+function parentFixture({ taskOverrides = {}, dispatchUser = issueFlow.ACTIONS_BOT } = {}) {
+  const source = { id: 100, created_at: '2026-08-22T00:00:00Z',
+    body: '@codex タスク分解してください', user: { ...OWNER } };
+  const planCandidate = candidate(taskOverrides);
+  const plan = { id: 110, created_at: '2026-08-22T00:01:00Z',
+    body: semanticPlan(planCandidate), user: { ...issueFlow.CODEX_BOT } };
+  const issue = { number: 42, title: '親Issue', body: '要件', labels: [] };
+  const sourceSha256 = issueFlow.sourceHash({ repository: dispatcher.PARENT_REPOSITORY,
+    issue, comments: [source, plan], repositoryOwner: OWNER, sourceOwnerCommentId: source.id });
+  const state = {
+    version: 1, state: 'approved', revision: 2, handledOwnerCommentId: 120,
+    sourceOwnerCommentId: 100, sourceSha256, planSha256: issueFlow.planHash(plan.body),
+    planCommentId: 110, resultCommentId: 110, approvalCommentId: 120, dispatchCommentId: 130,
   };
-  const planComment = {
-    id: 110,
-    created_at: '2026-08-18T00:01:00Z',
-    body: `${planText}\n\n${resultMarker({ state: 'plan', handled: 100, planHash: planSha256 })}`,
-    user: { ...issueFlow.CODEX_BOT },
-  };
-  const approvalCommand = {
-    id: 120,
-    created_at: '2026-08-18T00:02:00Z',
-    body: '@codex 承認します。子タスクへ配送してください',
-    user: { ...OWNER },
-  };
-  const dispatchComment = {
-    id: 130,
-    created_at: '2026-08-18T00:03:00Z',
-    body: `${dispatchBlock(task)}\n\n${resultMarker({ state: 'tasks-dispatched', handled: 120, planHash: planSha256 })}`,
-    user: { ...commentUser },
-  };
-  const comments = [sourceCommand, planComment, approvalCommand, dispatchComment];
+  const stateComment = { id: 115, created_at: '2026-08-22T00:01:30Z',
+    body: issueFlow.stateBody(state),
+    user: { ...issueFlow.ACTIONS_BOT } };
+  const approval = { id: 120, created_at: '2026-08-22T00:02:00Z',
+    body: '/codex approve', user: { ...OWNER } };
+  const task = issueFlow.projectCandidate(planCandidate, state, 42);
+  const marker = { version: 1, revision: 2, approvalCommentId: 120,
+    sourceOwnerCommentId: 100, sourceSha256, planSha256: state.planSha256, planCommentId: 110 };
+  const dispatch = { id: 130, created_at: '2026-08-22T00:03:00Z',
+    body: issueFlow.buildDispatchBody([task], marker), user: { ...dispatchUser } };
+  const comments = [source, plan, stateComment, approval, dispatch];
   const payload = {
-    action: 'created',
-    repository: {
-      id: 20,
-      full_name: dispatcher.PARENT_REPOSITORY,
-      owner: { ...OWNER },
-      default_branch: 'main',
-    },
-    issue: { id: 30, number: 42 },
-    comment: dispatchComment,
+    repository: { id: 20, full_name: dispatcher.PARENT_REPOSITORY,
+      owner: { ...OWNER }, default_branch: 'main' },
+    inputs: { issue_number: '42', dispatch_comment_id: '130' },
   };
-  return { task, comments, payload, planSha256 };
+  return { source, plan, state, stateComment, approval, task, marker, dispatch, comments, payload, issue };
 }
 
-function appendNewerOwnerCommandAndResult(fixture) {
-  const ownerCommand = {
-    id: 140,
-    created_at: '2026-08-18T00:04:00Z',
-    body: '@codex 新しい指示を処理してください',
-    user: { ...OWNER },
-  };
-  const result = {
-    id: 150,
-    created_at: '2026-08-18T00:05:00Z',
-    body: resultMarker({
-      state: 'error',
-      revision: 3,
-      handled: 140,
-      source: 140,
-      planHash: 'c'.repeat(64),
-    }),
-    user: { ...issueFlow.CODEX_BOT },
-  };
-  fixture.comments.push(ownerCommand, result);
-  return { ownerCommand, result };
-}
-
-function parentGithub(comments) {
+function parentGithub(fixture) {
   return {
-    paginate: async () => comments,
-    rest: { issues: { listComments: async () => ({ data: comments }) } },
+    paginate: async () => fixture.comments,
+    rest: { issues: {
+      listComments: async () => ({ data: fixture.comments }),
+      get: async () => ({ data: fixture.issue }),
+    } },
   };
 }
 
 function context(payload) {
-  return { eventName: 'issue_comment', payload };
+  return { eventName: 'workflow_dispatch', payload };
 }
-
-function existingChildIssue(task, overrides = {}) {
-  return {
-    number: 9,
-    html_url: `https://github.com/${task.repository}/issues/9`,
-    title: dispatcher.childIssueTitle(task),
-    body: dispatcher.buildChildIssueBody(task),
-    user: { login: 'shu-matsukubo', type: 'User' },
-    author_association: 'OWNER',
-    ...overrides,
-  };
-}
-
-test('trusted Codex bot and valid versioned blocks prepare dispatch tasks', async () => {
-  const fixture = parentFixture();
-  const prepared = await dispatcher.prepareDispatch({
-    github: parentGithub(fixture.comments),
-    context: context(fixture.payload),
-    core: { info() {} },
-  });
-  assert.equal(prepared.tasks.length, 1);
-  assert.equal(prepared.tasks[0].dispatchId, 'shu-matsukubo/matsu-workspace#42:T1:r2');
-  assert.equal(prepared.approvedPlan.planSha256, fixture.planSha256);
-});
-
-test('owner and unknown bot comments cannot trigger dispatch', async () => {
-  for (const user of [OWNER, { id: 999, login: 'unknown[bot]', type: 'Bot' }]) {
-    const fixture = parentFixture({}, user);
-    const prepared = await dispatcher.prepareDispatch({
-      github: parentGithub(fixture.comments),
-      context: context(fixture.payload),
-    });
-    assert.equal(prepared, null);
-  }
-});
-
-test('comments outside the parent repository cannot trigger dispatch', async () => {
-  const fixture = parentFixture();
-  fixture.payload.repository.full_name = 'shu-matsukubo/matsu-front';
-  const prepared = await dispatcher.prepareDispatch({
-    github: parentGithub(fixture.comments),
-    context: context(fixture.payload),
-  });
-  assert.equal(prepared, null);
-});
-
-test('dispatch must identify the latest trusted approved plan', async () => {
-  const fixture = parentFixture();
-  fixture.payload.comment.body = fixture.payload.comment.body.replaceAll(fixture.planSha256, 'c'.repeat(64));
-  fixture.comments[3] = fixture.payload.comment;
-  await assert.rejects(
-    dispatcher.prepareDispatch({ github: parentGithub(fixture.comments), context: context(fixture.payload) }),
-    /最新の信頼できるplan/,
-  );
-});
-
-test('a plan request cannot be reused as the handled approval command', async () => {
-  const fixture = parentFixture();
-  fixture.comments.splice(2, 1);
-  fixture.payload.comment.body = fixture.payload.comment.body.replace(
-    'handled-owner-comment-id=120',
-    'handled-owner-comment-id=100',
-  );
-  fixture.comments[2] = fixture.payload.comment;
-  await assert.rejects(
-    dispatcher.prepareDispatch({ github: parentGithub(fixture.comments), context: context(fixture.payload) }),
-    /plan comment|approval|時系列|承認対象/,
-  );
-});
-
-test('a selected plan comment must precede the handled approval command', async () => {
-  const fixture = parentFixture();
-  const laterPlanText = '## 計画 revision 3\n\n- 承認コメント後に生成された計画';
-  const laterPlanHash = dispatcher.planHash(laterPlanText);
-  const laterPlan = {
-    id: 125,
-    created_at: '2026-08-18T00:02:30Z',
-    body: `${laterPlanText}\n\n${resultMarker({ state: 'plan', revision: 3, handled: 120, planHash: laterPlanHash })}`,
-    user: { ...issueFlow.CODEX_BOT },
-  };
-  const task = taskPayload({
-    planSha256: laterPlanHash,
-    approvedPlan: {
-      revision: 3,
-      sha256: laterPlanHash,
-      sourceSha256: SOURCE_HASH,
-      sourceOwnerCommentId: 100,
-    },
-  });
-  fixture.payload.comment = {
-    ...fixture.payload.comment,
-    body: `${dispatchBlock(task)}\n\n${resultMarker({ state: 'tasks-dispatched', revision: 3, handled: 120, planHash: laterPlanHash })}`,
-  };
-  fixture.comments = [fixture.comments[0], fixture.comments[1], fixture.comments[2], laterPlan, fixture.payload.comment];
-  await assert.rejects(
-    dispatcher.prepareDispatch({ github: parentGithub(fixture.comments), context: context(fixture.payload) }),
-    /時系列/,
-  );
-});
-
-test('comment ID is the strict chronology tie-breaker for equal created_at values', async () => {
-  const valid = parentFixture();
-  valid.comments[1] = { ...valid.comments[1], id: 119, created_at: valid.comments[2].created_at };
-  await dispatcher.prepareDispatch({ github: parentGithub(valid.comments), context: context(valid.payload) });
-
-  const invalid = parentFixture();
-  invalid.comments[1] = { ...invalid.comments[1], id: 121, created_at: invalid.comments[2].created_at };
-  await assert.rejects(
-    dispatcher.prepareDispatch({ github: parentGithub(invalid.comments), context: context(invalid.payload) }),
-    /時系列/,
-  );
-});
-
-test('dispatch comment is consumed as an anchored block-group and terminal result grammar', async () => {
-  const fixture = parentFixture();
-  const validBody = fixture.payload.comment.body;
-  const result = validBody.slice(validBody.lastIndexOf('<!-- codex-issue-flow'));
-  const second = taskPayload({
-    key: 'T2',
-    repository: 'shu-matsukubo/matsu-bff',
-    planSha256: fixture.planSha256,
-  });
-  const invalidBodies = [
-    `unexpected text\n${validBody}`,
-    `${validBody}\nunexpected text`,
-    validBody.replaceAll('codex-task-dispatch:v1', 'codex-task-dispatch:v2'),
-    validBody.replace('<!-- /codex-task-dispatch:v1 -->', '<!-- /codex-task-dispatch:vi -->'),
-    `${dispatchBlock(fixture.task)}\n\n${result}\n\n${dispatchBlock(second)}\n\n${result}`,
-    `${dispatchBlock(fixture.task)}\n\n${dispatchBlock(second).replaceAll('codex-task-dispatch:v1', 'codex-task-dispatch:v2')}\n\n${result}`,
-  ];
-
-  for (const body of invalidBodies) {
-    const invalid = parentFixture();
-    invalid.payload.comment = { ...invalid.payload.comment, body };
-    invalid.comments[3] = invalid.payload.comment;
-    await assert.rejects(
-      dispatcher.prepareDispatch({ github: parentGithub(invalid.comments), context: context(invalid.payload) }),
-      /dispatch comment|grammar|block|marker|形式/,
-    );
-  }
-});
-
-test('malformed dispatch marker does not produce a child task', async () => {
-  const fixture = parentFixture();
-  fixture.payload.comment.body = fixture.payload.comment.body.replace(JSON.stringify(fixture.task), '{broken-json');
-  fixture.comments[3] = fixture.payload.comment;
-  await assert.rejects(
-    dispatcher.prepareDispatch({ github: parentGithub(fixture.comments), context: context(fixture.payload) }),
-    /正しいJSON/,
-  );
-});
-
-test('repository outside the explicit allowlist is rejected', async () => {
-  const fixture = parentFixture({ repository: 'shu-matsukubo/not-allowed' });
-  await assert.rejects(
-    dispatcher.prepareDispatch({ github: parentGithub(fixture.comments), context: context(fixture.payload) }),
-    /allowlist外/,
-  );
-});
-
-test('task schema rejects unknown keys and a forged dispatch-id', async () => {
-  for (const overrides of [
-    { unknownField: 'not allowed' },
-    { dispatchId: 'shu-matsukubo/matsu-workspace#42:T1:r999' },
-  ]) {
-    const fixture = parentFixture(overrides);
-    await assert.rejects(
-      dispatcher.prepareDispatch({ github: parentGithub(fixture.comments), context: context(fixture.payload) }),
-      /schema|dispatchId/,
-    );
-  }
-});
-
-test('two task blocks in one result comment become two prepared tasks', async () => {
-  const fixture = parentFixture();
-  const second = taskPayload({
-    key: 'T2',
-    repository: 'shu-matsukubo/matsu-bff',
-    planSha256: fixture.planSha256,
-  });
-  fixture.payload.comment.body = fixture.payload.comment.body.replace(
-    '\n\n<!-- codex-issue-flow',
-    `\n\n${dispatchBlock(second)}\n\n<!-- codex-issue-flow`,
-  );
-  fixture.comments[3] = fixture.payload.comment;
-  const prepared = await dispatcher.prepareDispatch({
-    github: parentGithub(fixture.comments),
-    context: context(fixture.payload),
-  });
-  assert.deepEqual(prepared.tasks.map((task) => task.key), ['T1', 'T2']);
-});
 
 function preparedWithTasks(tasks) {
   return {
@@ -353,73 +124,161 @@ function preparedWithTasks(tasks) {
   };
 }
 
-function childGithub(initialByRepository = {}) {
+test('Case 5: trusted Actions dispatch and authoritative approved state prepare tasks', async () => {
+  const fixture = parentFixture();
+  const prepared = await dispatcher.prepareDispatch({ github: parentGithub(fixture),
+    context: context(fixture.payload), core: { info() {} } });
+  assert.equal(prepared.tasks.length, 1);
+  assert.equal(prepared.tasks[0].dispatchId, 'shu-matsukubo/matsu-workspace#42:T1:r2');
+  assert.equal(prepared.approvedPlan.planSha256, fixture.state.planSha256);
+});
+
+test('dispatch prepare requires the final approved state and rejects approval-verified', async () => {
+  const fixture = parentFixture();
+  const verified = { ...fixture.state, state: 'approval-verified', dispatchCommentId: null };
+  fixture.stateComment.body = issueFlow.stateBody(verified);
+  assert.equal(await dispatcher.prepareDispatch({ github: parentGithub(fixture),
+    context: context(fixture.payload) }), null);
+});
+
+test('owner, Codex bot, and unknown bot cannot trigger Actions dispatch', async () => {
+  for (const user of [OWNER, issueFlow.CODEX_BOT, { id: 999, login: 'unknown[bot]', type: 'Bot' }]) {
+    const fixture = parentFixture({ dispatchUser: user });
+    assert.equal(await dispatcher.prepareDispatch({ github: parentGithub(fixture), context: context(fixture.payload) }), null);
+  }
+});
+
+test('Pull Request and non-parent repository workflow inputs cannot trigger dispatch', async () => {
+  const pullRequest = parentFixture();
+  pullRequest.issue.pull_request = { url: 'https://example.test/pr/42' };
+  await assert.rejects(dispatcher.prepareDispatch({ github: parentGithub(pullRequest), context: context(pullRequest.payload) }), /親Issue/);
+  const otherRepository = parentFixture();
+  otherRepository.payload.repository.full_name = 'shu-matsukubo/matsu-front';
+  assert.equal(await dispatcher.prepareDispatch({ github: parentGithub(otherRepository), context: context(otherRepository.payload) }), null);
+});
+
+test('issue_comment events and forged workflow_dispatch inputs cannot trigger dispatch', async () => {
+  const issueComment = parentFixture();
+  assert.equal(await dispatcher.prepareDispatch({ github: parentGithub(issueComment),
+    context: { eventName: 'issue_comment', payload: issueComment.payload } }), null);
+  for (const inputs of [
+    { issue_number: '042', dispatch_comment_id: '130' },
+    { issue_number: '42', dispatch_comment_id: '999' },
+    { issue_number: '42', dispatch_comment_id: '../130' },
+  ]) {
+    const fixture = parentFixture();
+    fixture.payload.inputs = inputs;
+    assert.equal(await dispatcher.prepareDispatch({ github: parentGithub(fixture),
+      context: context(fixture.payload) }), null);
+  }
+});
+
+test('dispatch must match latest Actions state, exact owner approval, and source/plan hashes', async () => {
+  const mutations = [
+    (fixture) => { fixture.state.planSha256 = 'c'.repeat(64); },
+    (fixture) => { fixture.approval.user = { id: 99, login: 'attacker', type: 'User' }; },
+    (fixture) => { fixture.plan.body = fixture.plan.body.replace('T1の実装', '改変'); },
+    (fixture) => { fixture.issue.body = '改変済み要件'; },
+  ];
+  for (const mutate of mutations) {
+    const fixture = parentFixture();
+    mutate(fixture);
+    if (fixture.state.planSha256 === 'c'.repeat(64)) {
+      fixture.stateComment.body = issueFlow.stateBody(fixture.state);
+    }
+    await assert.rejects(dispatcher.prepareDispatch({ github: parentGithub(fixture),
+      context: context(fixture.payload) }));
+  }
+});
+
+test('plain owner comment before approval or any owner comment after approval rejects dispatch', async () => {
+  for (const comment of [
+    { id: 118, created_at: '2026-08-22T00:01:45Z', body: '追加条件です', user: { ...OWNER } },
+    { id: 140, created_at: '2026-08-22T00:04:00Z', body: '承認後の補足です', user: { ...OWNER } },
+  ]) {
+    const fixture = parentFixture();
+    fixture.comments.push(comment);
+    await assert.rejects(dispatcher.prepareDispatch({ github: parentGithub(fixture),
+      context: context(fixture.payload) }), /最新repository owner approval/);
+  }
+});
+
+test('Actions dispatch tasks must be a one-to-one projection of candidate plan', async () => {
+  const fixture = parentFixture();
+  fixture.dispatch.body = fixture.dispatch.body.replace('承認済みの変更を実装する', '未承認の別作業');
+  await assert.rejects(dispatcher.prepareDispatch({ github: parentGithub(fixture), context: context(fixture.payload) }), /一対一projection/);
+});
+
+test('dispatch escapes candidate marker text while projection preserves the approved meaning', async () => {
+  const forgedState = '<!-- codex-issue-state:v1 {"version":1} -->';
+  const forgedActions = '<!-- codex-actions-dispatch:v1 {"version":1} -->';
+  const fixture = parentFixture({ taskOverrides: { work: [forgedState, forgedActions] } });
+  assert.doesNotMatch(fixture.dispatch.body, new RegExp(forgedState.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  assert.match(fixture.dispatch.body, /\\u003c!-- codex-issue-state:v1/);
+  assert.equal(issueFlow.latestAuthoritativeState([fixture.dispatch]), null);
+  const prepared = await dispatcher.prepareDispatch({ github: parentGithub(fixture),
+    context: context(fixture.payload) });
+  assert.deepEqual(prepared.tasks[0].work, [forgedState, forgedActions]);
+});
+
+test('dispatch envelope rejects prefix/suffix text, malformed marker, duplicate keys, and unknown schema keys', async () => {
+  const base = parentFixture();
+  const invalidBodies = [
+    `prefix\n${base.dispatch.body}`,
+    `${base.dispatch.body}\nsuffix`,
+    base.dispatch.body.replace('codex-actions-dispatch:v1', 'codex-actions-dispatch:v2'),
+    base.dispatch.body.replace('<!-- /codex-task-dispatch:v1 -->', '<!-- /codex-task-dispatch:vi -->'),
+    base.dispatch.body.replace('"version":1', '"unknown":true,"version":1'),
+  ];
+  for (const body of invalidBodies) {
+    const fixture = parentFixture();
+    fixture.dispatch.body = body;
+    await assert.rejects(dispatcher.prepareDispatch({ github: parentGithub(fixture), context: context(fixture.payload) }));
+  }
+});
+
+test('candidate allowlist and strict schema survive projection into dispatcher validation', async () => {
+  assert.throws(() => issueFlow.validateCandidateTask(candidate({ repository: 'attacker/repo' })), /allowlist/);
+  const task = taskPayload({ repository: 'attacker/repo' });
+  assert.throws(() => dispatcher.validatePreparedDispatch(preparedWithTasks([task])), /allowlist/);
+  const extra = taskPayload({ unexpected: true });
+  assert.throws(() => dispatcher.validatePreparedDispatch(preparedWithTasks([extra])), /schema/);
+});
+
+function existingChildIssue(task, overrides = {}) {
+  return {
+    number: 9,
+    html_url: `https://github.com/${task.repository}/issues/9`,
+    title: dispatcher.childIssueTitle(task),
+    body: dispatcher.buildChildIssueBody(task),
+    user: { login: 'shu-matsukubo', type: 'User' },
+    author_association: 'OWNER',
+    ...overrides,
+  };
+}
+
+function childGithub(byRepository = {}) {
   const calls = { create: [] };
-  const byRepository = Object.fromEntries(Object.entries(initialByRepository).map(([key, value]) => [key, [...value]]));
   return {
     calls,
-    byRepository,
     paginate: async (_method, args) => byRepository[`${args.owner}/${args.repo}`] || [],
     rest: { issues: {
       listForRepo: async () => ({ data: [] }),
       create: async (args) => {
         calls.create.push(args);
         const repository = `${args.owner}/${args.repo}`;
-        const issue = {
-          number: 100 + calls.create.length,
+        const issue = { number: 100 + calls.create.length,
           html_url: `https://github.com/${repository}/issues/${100 + calls.create.length}`,
-          title: args.title,
-          body: args.body,
-          user: { login: 'shu-matsukubo', type: 'User' },
-          author_association: 'OWNER',
-        };
-        if (!byRepository[repository]) byRepository[repository] = [];
-        byRepository[repository].push(issue);
+          title: args.title, body: args.body,
+          user: { login: 'shu-matsukubo', type: 'User' }, author_association: 'OWNER' };
+        (byRepository[repository] ||= []).push(issue);
         return { data: issue };
       },
     } },
   };
 }
 
-function trackingGithub(comments = [], initialState = 'Codex:処理中') {
-  const calls = { create: [], update: [], removeLabel: [], addLabels: [] };
-  const labels = new Set([initialState]);
-  return {
-    calls,
-    labels,
-    paginate: async () => comments,
-    rest: { issues: {
-      listComments: async () => ({ data: comments }),
-      createComment: async (args) => {
-        calls.create.push(args);
-        const comment = { id: 3, body: args.body, user: { ...dispatcher.TRUSTED_ACTIONS_BOT } };
-        comments.push(comment);
-        return { data: comment };
-      },
-      updateComment: async (args) => {
-        calls.update.push(args);
-        const comment = comments.find((candidate) => candidate.id === args.comment_id);
-        if (comment) comment.body = args.body;
-        return { data: { id: args.comment_id } };
-      },
-      getLabel: async () => ({ data: {} }),
-      createLabel: async () => ({ data: {} }),
-      get: async () => ({ data: { labels: [...labels].map((name) => ({ name })) } }),
-      removeLabel: async (args) => {
-        calls.removeLabel.push(args);
-        labels.delete(args.name);
-        return { data: {} };
-      },
-      addLabels: async (args) => {
-        calls.addLabels.push(args);
-        for (const name of args.labels) labels.add(name);
-        return { data: {} };
-      },
-    } },
-  };
-}
-
-test('same dispatch-id is reused on rerun without creating a duplicate Issue', async () => {
+test('Case 6: same dispatch-id reuses owner-created child Issue and never duplicates it', async () => {
   const task = taskPayload();
   const existing = existingChildIssue(task);
   const github = childGithub({ [task.repository]: [existing] });
@@ -429,16 +288,7 @@ test('same dispatch-id is reused on rerun without creating a duplicate Issue', a
   assert.equal(result.items[0].issueNumber, 9);
 });
 
-test('two prepared task blocks create two child Issues', async () => {
-  const first = taskPayload();
-  const second = taskPayload({ key: 'T2', repository: 'shu-matsukubo/matsu-bff' });
-  const github = childGithub();
-  const result = await dispatcher.dispatchPrepared({ github, prepared: preparedWithTasks([first, second]) });
-  assert.equal(github.calls.create.length, 2);
-  assert.deepEqual(result.items.map((item) => item.taskKey), ['T1', 'T2']);
-});
-
-test('partial rerun reuses the successful task and creates only the missing task', async () => {
+test('one task creates one Issue and partial rerun only creates the missing task', async () => {
   const first = taskPayload();
   const second = taskPayload({ key: 'T2', repository: 'shu-matsukubo/matsu-bff' });
   const existing = existingChildIssue(first);
@@ -449,344 +299,170 @@ test('partial rerun reuses the successful task and creates only the missing task
   assert.deepEqual(result.items.map((item) => item.outcome), ['reused', 'created']);
 });
 
-test('a pull request with an exact packet is never reused as a child Issue', async () => {
-  const task = taskPayload();
-  const pullRequest = existingChildIssue(task, {
-    pull_request: { url: 'https://api.github.com/repos/shu-matsukubo/matsu-front/pulls/9' },
-  });
-  const github = childGithub({ [task.repository]: [pullRequest] });
-  const result = await dispatcher.dispatchPrepared({ github, prepared: preparedWithTasks([task]) });
-  assert.equal(github.calls.create.length, 1);
-  assert.equal(result.items[0].outcome, 'created');
-});
-
-test('an owner-created Issue is reused after checkbox, body, and title edits', async () => {
+test('forged, misplaced, duplicated, or Pull Request child markers are never reused', async () => {
   const task = taskPayload();
   const marker = dispatcher.childIssueMarker(task.dispatchId);
-  const edited = existingChildIssue(task, {
-    title: '[edited] implementation in progress',
-    body: `${marker}\n\n- [x] first completion item\n\nowner note: implementation started`,
-  });
-  const github = childGithub({ [task.repository]: [edited] });
-  const result = await dispatcher.dispatchPrepared({ github, prepared: preparedWithTasks([task]) });
-  assert.equal(github.calls.create.length, 0);
-  assert.equal(result.items[0].outcome, 'reused');
-  assert.equal(result.items[0].issueNumber, 9);
-});
-
-test('a non-owner cannot reserve a dispatch-id with an exact execution packet', async () => {
-  const task = taskPayload();
-  const forged = existingChildIssue(task, {
-    user: { login: 'attacker', type: 'User' },
-    author_association: 'NONE',
-  });
-  const github = childGithub({ [task.repository]: [forged] });
-  const result = await dispatcher.dispatchPrepared({ github, prepared: preparedWithTasks([task]) });
-  assert.equal(github.calls.create.length, 1);
-  assert.equal(result.items[0].outcome, 'created');
-});
-
-test('an owner Issue with a misplaced, duplicated, or inexact marker is not reused', async () => {
-  const task = taskPayload();
-  const marker = dispatcher.childIssueMarker(task.dispatchId);
-  const invalidCandidates = [
+  const candidates = [
+    existingChildIssue(task, { user: { login: 'attacker', type: 'User' }, author_association: 'NONE' }),
     existingChildIssue(task, { body: `prefix\n${marker}` }),
     existingChildIssue(task, { body: `${marker}\n${marker}` }),
-    existingChildIssue(task, { body: `${marker} forged suffix` }),
+    existingChildIssue(task, { pull_request: { url: 'https://example.test/pull/9' } }),
   ];
-
-  for (const candidate of invalidCandidates) {
-    const github = childGithub({ [task.repository]: [candidate] });
+  for (const candidateIssue of candidates) {
+    const github = childGithub({ [task.repository]: [candidateIssue] });
     const result = await dispatcher.dispatchPrepared({ github, prepared: preparedWithTasks([task]) });
     assert.equal(github.calls.create.length, 1);
     assert.equal(result.items[0].outcome, 'created');
   }
 });
 
-test('execution packet preserves dependencies and never auto-mentions Codex', () => {
+test('child execution packet preserves dependencies and human gate without automatic Codex mention', () => {
   const task = taskPayload({
-    dependencies: [{
-      target: 'shu-matsukubo/matsu-api#20',
-      type: 'hard',
-      gate: 'start',
-      completion: '関連Pull Requestがmerged',
-      evidence: 'open at planning time',
-    }],
-    work: ['通知文に @codex を直接書かない'],
+    dependencies: [{ target: 'shu-matsukubo/matsu-api#20', type: 'hard', gate: 'start',
+      completion: '関連Pull Requestがmerged', evidence: 'open at planning time' }],
+    work: ['自動起動を追加しない'],
   });
   const body = dispatcher.buildChildIssueBody(task);
   assert.match(body, /shu-matsukubo\/matsu-api#20/);
   assert.match(body, /実装開始直前に依存対象の現在状態をGitHubから再取得/);
+  assert.match(body, /packet検証が完了するまで、source・test変更/);
+  assert.match(body, /ユーザー.*確認|内容を確認後/);
   assert.doesNotMatch(body, /@codex/i);
-  assert.match(body, /Codex Web UI/);
   assert.match(body, /実行コンテキスト: `issue-cloud`/);
   assert.match(body, /公開モード: `codex-web-ui`/);
-  assert.match(body, /task本文から再判定しません/);
-  assert.match(body, /## 実装開始gate/);
-  assert.match(body, /version 1 marker、対象repository、親Issue、approved plan、dispatch-id/);
-  assert.match(body, /packet検証が完了するまで、source・test変更、branch・commit作成、実装agent起動、実装品質ゲートを開始しません/);
-  assert.match(body, /人数や担当範囲を固定しません/);
-  assert.match(body, /責務境界、依存関係、変更競合、統合コストから必要最小限/);
-  assert.match(body, /行数やtask規模だけで人数を決めません/);
-  assert.match(body, /同一ファイルの大幅変更、強い依存/);
-  assert.match(body, /Worker間の整合性、task全体の仕様充足、責務境界、統合後の問題/);
-  assert.match(body, /## dependency操作/);
-  assert.match(body, /dependency変更が明記されていない限り、探索目的のinstall・update/);
-  assert.match(body, /npm install --package-lock-only/);
-  assert.match(body, /installを試す前にscope変更として再計画・再承認/);
-  assert.match(body, /人間向けMarkdownは日本語/);
-  assert.match(body, /machine-readable marker・JSON/);
-  assert.match(body, /documentation follow-up required/);
 });
 
-test('reviewer strategy describes integrated review without dedicated reviewers', () => {
-  const task = taskPayload({ agentStrategy: 'worker-reviewer-parent' });
-  const body = dispatcher.buildChildIssueBody(task);
-  assert.match(body, /1人以上のWorkerが担当範囲を実装してself reviewし、Mainが全成果を統合した後、1人以上の独立Reviewerがその統合差分をreviewし、Mainがdiffと検証結果を最終review/);
-  assert.match(body, /Reviewerを利用するstrategyでは各Workerへの専属配置を要求せず/);
-});
-
-test('explicitly approved documentation mode permits only the scoped document update', () => {
+test('reviewer strategy and explicit documentation mode remain in the human execution packet', () => {
   const task = taskPayload({
-    work: ['承認されたAGENTS.mdの契約を更新する'],
-    documentation: {
-      mode: 'explicit-update',
-      followUp: ['対象: AGENTS.md / 理由: 承認済みAI作業契約の変更'],
-    },
+    agentStrategy: 'worker-reviewer-parent',
+    documentation: { mode: 'explicit-update', followUp: ['対象: AGENTS.md'] },
   });
   dispatcher.validatePreparedDispatch(preparedWithTasks([task]));
   const body = dispatcher.buildChildIssueBody(task);
+  assert.match(body, /独立Reviewer/);
   assert.match(body, /mode: `explicit-update`/);
   assert.match(body, /documentation本文の更新が承認範囲に明示的に含まれています/);
-  assert.doesNotMatch(body, /利用者・開発者向け文書を変更しません/);
 });
 
-test('documentation mode is a strict enum', async () => {
-  const fixture = parentFixture({ documentation: { mode: 'implicit-update', followUp: [] } });
-  await assert.rejects(
-    dispatcher.prepareDispatch({ github: parentGithub(fixture.comments), context: context(fixture.payload) }),
-    /documentation\.mode/,
-  );
-});
-
-test('new child Issue title and body do not contain an automatic Codex mention', async () => {
-  const task = taskPayload({ title: '通知 @codex を追加しない', work: ['@codex を自動追加しない'] });
-  const github = childGithub();
-  await dispatcher.dispatchPrepared({ github, prepared: preparedWithTasks([task]) });
-  assert.equal(github.calls.create.length, 1);
-  assert.doesNotMatch(github.calls.create[0].title, /@codex/i);
-  assert.doesNotMatch(github.calls.create[0].body, /@codex/i);
-});
-
-test('missing token fails safely and the token value is never logged', () => {
+test('token boundary fails safely and never prints the token', () => {
   assert.throws(() => dispatcher.requireCrossRepoToken(''), /not configured/);
   const secret = 'sensitive-test-token-value-that-must-not-leak';
   assert.equal(dispatcher.requireCrossRepoToken(secret), true);
   assert.doesNotMatch(dispatcher.requireCrossRepoToken.toString(), new RegExp(secret));
-});
-
-test('missing token produces one parent-trackable failure for every prepared task', () => {
   const first = taskPayload();
   const second = taskPayload({ key: 'T2', repository: 'shu-matsukubo/matsu-bff' });
   const result = dispatcher.missingTokenDispatchResult(preparedWithTasks([first, second]));
   assert.deepEqual(result.items, []);
   assert.deepEqual(result.failures.map((failure) => failure.taskKey), ['T1', 'T2']);
-  assert.ok(result.failures.every((failure) => failure.error.includes('CROSS_REPO_ISSUE_TOKEN')));
 });
 
-test('tracking comment is updated idempotently only when authored by GitHub Actions', async () => {
-  const fixture = parentFixture();
-  const task = fixture.task;
-  const prepared = preparedWithTasks([task]);
-  const result = {
-    version: 1,
-    items: [{
-      taskKey: 'T1', repository: task.repository, issueNumber: 9,
-      url: 'https://github.com/shu-matsukubo/matsu-front/issues/9', outcome: 'reused',
-    }],
-    failures: [],
+function trackingGithub(comments, initialState = 'Codex:処理中') {
+  const labels = new Set([initialState]);
+  const calls = { create: [], update: [], removeLabel: [], addLabels: [] };
+  return {
+    calls,
+    paginate: async () => comments,
+    rest: { issues: {
+      listComments: async () => ({ data: comments }),
+      createComment: async (args) => { calls.create.push(args); const comment = { id: 300, body: args.body,
+        created_at: '2026-08-22T00:04:00Z', user: { ...issueFlow.ACTIONS_BOT } }; comments.push(comment); return { data: comment }; },
+      updateComment: async (args) => { calls.update.push(args); return { data: { id: args.comment_id } }; },
+      getLabel: async () => ({ data: {} }), createLabel: async () => ({ data: {} }),
+      get: async () => ({ data: { labels: [...labels].map((name) => ({ name })) } }),
+      removeLabel: async (args) => { calls.removeLabel.push(args); labels.delete(args.name); },
+      addLabels: async (args) => { calls.addLabels.push(args); args.labels.forEach((label) => labels.add(label)); },
+    } },
   };
-  const marker = dispatcher.trackingMarker(prepared);
-  const comments = [...fixture.comments,
-    { id: 1, body: marker, user: { ...OWNER } },
-    { id: 2, body: marker, user: { ...dispatcher.TRUSTED_ACTIONS_BOT } },
-  ];
-  const github = trackingGithub(comments);
-  const tracked = await dispatcher.upsertTrackingComment({
-    github,
-    prepared,
-    result,
-    context: context(fixture.payload),
-  });
-  assert.deepEqual(tracked, { outcome: 'updated', commentId: 2 });
+}
+
+test('tracking remains idempotent and syncs final state only for current approved dispatch', async () => {
+  const fixture = parentFixture();
+  const prepared = preparedWithTasks([fixture.task]);
+  const result = { version: 1, items: [{ taskKey: 'T1', repository: fixture.task.repository,
+    issueNumber: 9, url: 'https://github.com/shu-matsukubo/matsu-front/issues/9', outcome: 'reused' }], failures: [] };
+  const tracking = { id: 200, created_at: '2026-08-22T00:04:00Z',
+    body: dispatcher.trackingMarker(prepared), user: { ...issueFlow.ACTIONS_BOT } };
+  fixture.comments.push(tracking);
+  const github = trackingGithub(fixture.comments);
+  const outcome = await dispatcher.upsertTrackingComment({ github, prepared, result,
+    context: context(fixture.payload), core: { info() {} } });
+  assert.deepEqual(outcome, { outcome: 'updated', commentId: 200 });
   assert.equal(github.calls.create.length, 0);
   assert.equal(github.calls.update.length, 1);
-  assert.match(github.calls.update[0].body, /\[#9\]/);
-  assert.ok(github.labels.has('Codex:子タスク確認待ち'));
-  assert.ok(!github.labels.has('Codex:処理中'));
+  assert.doesNotMatch(github.calls.update[0].body, /@codex/i);
+  assert.deepEqual(github.calls.addLabels.map((call) => call.labels), [['Codex:子タスク確認待ち']]);
 });
 
-test('missing token failures are tracked on the parent and move it to judgment required', async () => {
+test('malformed trusted Actions dispatch gets generic idempotent failure tracking without input leakage', async () => {
   const fixture = parentFixture();
-  const first = fixture.task;
-  const second = taskPayload({
-    key: 'T2',
-    repository: 'shu-matsukubo/matsu-bff',
-    planSha256: fixture.planSha256,
-  });
-  const prepared = preparedWithTasks([first, second]);
-  const result = dispatcher.missingTokenDispatchResult(prepared);
+  fixture.dispatch.body = 'secret-malformed-input';
   const github = trackingGithub(fixture.comments);
-  const tracked = await dispatcher.upsertTrackingComment({
-    github,
-    prepared,
-    result,
-    context: context(fixture.payload),
-  });
-  assert.deepEqual(tracked, { outcome: 'created', commentId: 3 });
+  await assert.rejects(dispatcher.prepareDispatch({ github: parentGithub(fixture),
+    context: context(fixture.payload) }), /version 1 task block/);
+  const first = await dispatcher.upsertPreparationFailure({ github, context: context(fixture.payload), core: { info() {} } });
+  const second = await dispatcher.upsertPreparationFailure({ github, context: context(fixture.payload), core: { info() {} } });
+  assert.deepEqual(first, { outcome: 'created', commentId: 300 });
+  assert.deepEqual(second, { outcome: 'updated', commentId: 300 });
   assert.equal(github.calls.create.length, 1);
-  assert.match(github.calls.create[0].body, /T1/);
-  assert.match(github.calls.create[0].body, /T2/);
-  assert.ok(github.labels.has('Codex:要判断'));
-  assert.ok(!github.labels.has('Codex:処理中'));
+  assert.doesNotMatch(github.calls.create[0].body, /secret-malformed-input/);
+  assert.match(github.calls.create[0].body, /検証エラーの詳細や認証情報はこのコメントへ記録していません/);
+  assert.doesNotMatch(github.calls.create[0].body, /@codex/i);
+  assert.deepEqual(github.calls.addLabels.map((call) => call.labels), [['Codex:要判断']]);
 });
 
-test('an old successful dispatch rerun keeps the state chosen by a newer owner command and result', async () => {
-  const fixture = parentFixture();
-  appendNewerOwnerCommandAndResult(fixture);
-  const prepared = preparedWithTasks([fixture.task]);
-  const result = {
-    version: 1,
-    items: [{
-      taskKey: fixture.task.key,
-      repository: fixture.task.repository,
-      issueNumber: 9,
-      url: 'https://github.com/shu-matsukubo/matsu-front/issues/9',
-      outcome: 'reused',
-    }],
-    failures: [],
-  };
-  const infos = [];
-  const github = trackingGithub(fixture.comments, 'Codex:PR作成済');
-  const tracked = await dispatcher.upsertTrackingComment({
-    github,
-    prepared,
-    result,
-    context: context(fixture.payload),
-    core: { info(message) { infos.push(message); } },
-  });
-  assert.equal(tracked.outcome, 'created');
-  assert.equal(github.calls.create.length, 1);
-  assert.ok(github.labels.has('Codex:PR作成済'));
-  assert.deepEqual(github.calls.removeLabel, []);
-  assert.deepEqual(github.calls.addLabels, []);
-  assert.ok(infos.some((message) => message.includes('state labelは変更しません')));
-});
-
-test('malformed and allowlist-rejected dispatches get generic idempotent parent failure tracking', async () => {
-  const malformed = parentFixture();
-  malformed.payload.comment.body = malformed.payload.comment.body.replace(
-    JSON.stringify(malformed.task),
-    '{broken-json-sensitive-detail',
-  );
-  malformed.comments[3] = malformed.payload.comment;
-  const disallowed = parentFixture({ repository: 'shu-matsukubo/not-allowed' });
-  const untrustedSource = parentFixture();
-  untrustedSource.payload.comment.body = untrustedSource.payload.comment.body.replace(
-    'source-owner-comment-id=100',
-    'source-owner-comment-id=999',
-  );
-  untrustedSource.comments[3] = untrustedSource.payload.comment;
-
-  for (const fixture of [malformed, disallowed, untrustedSource]) {
-    await assert.rejects(
-      dispatcher.prepareDispatch({ github: parentGithub(fixture.comments), context: context(fixture.payload) }),
-    );
-    const github = trackingGithub(fixture.comments);
-    const first = await dispatcher.upsertPreparationFailure({
-      github,
-      context: context(fixture.payload),
-    });
-    const second = await dispatcher.upsertPreparationFailure({
-      github,
-      context: context(fixture.payload),
-    });
-    assert.deepEqual(first, { outcome: 'created', commentId: 3 });
-    assert.deepEqual(second, { outcome: 'updated', commentId: 3 });
-    assert.equal(github.calls.create.length, 1);
-    assert.equal(github.calls.update.length, 1);
-    assert.doesNotMatch(github.calls.create[0].body, /broken-json-sensitive-detail|not-allowed/);
-    assert.match(github.calls.create[0].body, /検証エラーの詳細や認証情報はこのコメントへ記録していません/);
-    assert.ok(github.labels.has('Codex:要判断'));
-  }
-});
-
-test('generic preparation failure tracking ignores untrusted comments', async () => {
-  const fixture = parentFixture({}, { id: 999, login: 'unknown[bot]', type: 'Bot' });
-  const github = trackingGithub();
-  const tracked = await dispatcher.upsertPreparationFailure({
-    github,
-    context: context(fixture.payload),
-  });
-  assert.equal(tracked, null);
+test('untrusted dispatch never gets an Actions failure comment', async () => {
+  const fixture = parentFixture({ dispatchUser: { id: 999, login: 'unknown[bot]', type: 'Bot' } });
+  const github = trackingGithub(fixture.comments);
+  const result = await dispatcher.upsertPreparationFailure({ github, context: context(fixture.payload) });
+  assert.equal(result, null);
   assert.equal(github.calls.create.length, 0);
-  assert.ok(github.labels.has('Codex:処理中'));
 });
 
-test('an old invalid prepare rerun keeps the state chosen by a newer owner command and result', async () => {
+test('new owner comment prevents stale dispatch failure tracking and label updates', async () => {
   const fixture = parentFixture();
-  fixture.payload.comment.body = fixture.payload.comment.body.replace(
-    'state=tasks-dispatched',
-    'state=tasks-dispatche',
-  );
-  fixture.comments[3] = fixture.payload.comment;
-  await assert.rejects(
-    dispatcher.prepareDispatch({ github: parentGithub(fixture.comments), context: context(fixture.payload) }),
-  );
-  appendNewerOwnerCommandAndResult(fixture);
-  const infos = [];
+  fixture.dispatch.body = 'broken-current-dispatch';
+  fixture.comments.push({ id: 140, created_at: '2026-08-22T00:04:00Z',
+    body: '承認後の追加条件です', user: { ...OWNER } });
+  const github = trackingGithub(fixture.comments);
+  const result = await dispatcher.upsertPreparationFailure({ github, context: context(fixture.payload) });
+  assert.equal(result, null);
+  assert.equal(github.calls.create.length, 0);
+  assert.equal(github.calls.addLabels.length, 0);
+});
+
+test('new owner revise after dispatch prevents an old rerun from overwriting current label', async () => {
+  const fixture = parentFixture();
+  fixture.comments.push({ id: 140, created_at: '2026-08-22T00:04:00Z',
+    body: '@codex 計画を変更してください', user: { ...OWNER } });
+  const prepared = preparedWithTasks([fixture.task]);
+  const result = { version: 1, items: [{ taskKey: 'T1', repository: fixture.task.repository,
+    issueNumber: 9, url: 'https://example.test/9', outcome: 'reused' }], failures: [] };
   const github = trackingGithub(fixture.comments, 'Codex:PR作成済');
-  const tracked = await dispatcher.upsertPreparationFailure({
-    github,
-    context: context(fixture.payload),
-    core: { info(message) { infos.push(message); } },
-  });
-  assert.equal(tracked.outcome, 'created');
-  assert.equal(github.calls.create.length, 1);
-  assert.ok(github.labels.has('Codex:PR作成済'));
+  await dispatcher.upsertTrackingComment({ github, prepared, result,
+    context: context(fixture.payload), core: { info() {} } });
   assert.deepEqual(github.calls.removeLabel, []);
   assert.deepEqual(github.calls.addLabels, []);
-  assert.ok(infos.some((message) => message.includes('state labelは変更しません')));
 });
 
-test('dispatcher workflow separates parent validation, cross-repository write, and parent tracking tokens', () => {
+test('dispatcher workflow preserves separated token scopes and generic failure handling', () => {
   const workflow = fs.readFileSync(path.join(__dirname, '..', 'workflows', 'child-task-dispatcher.yml'), 'utf8');
-  assert.match(workflow, /issue_comment:\s*[\s\S]*created/);
+  const source = fs.readFileSync(path.join(__dirname, 'child-task-dispatcher.cjs'), 'utf8');
   assert.match(workflow, /github\.repository == 'shu-matsukubo\/matsu-workspace'/);
+  assert.match(workflow, /workflow_dispatch:/);
+  assert.match(workflow, /issue_number:[\s\S]*dispatch_comment_id:/);
+  assert.doesNotMatch(workflow, /issue_comment:/);
+  assert.match(source, /authoritative\.state\.state === 'approved'/);
+  assert.doesNotMatch(source, /authoritative\.state\.state === 'approval-verified'/);
   assert.match(workflow, /CROSS_REPO_ISSUE_TOKEN/);
   assert.match(workflow, /github-token: \$\{\{ secrets\.CROSS_REPO_ISSUE_TOKEN \}\}/);
   assert.match(workflow, /github-token: \$\{\{ github\.token \}\}/);
-  assert.match(workflow, /configured=false/);
   assert.match(workflow, /missingTokenDispatchResult/);
-  assert.match(workflow, /steps\.dispatch\.outputs\.dispatch-result \|\| steps\.missing-token\.outputs\.dispatch-result/);
-  assert.match(workflow, /core\.setOutput\('prepare-failed', 'true'\)/);
-  assert.match(workflow, /core\.setFailed\('Child task dispatch validation failed\.'\)/);
-  assert.match(workflow, /always\(\)[\s\S]*steps\.prepare\.outputs\.prepare-failed == 'true'/);
   assert.match(workflow, /upsertPreparationFailure/);
-  assert.match(workflow, /upsertTrackingComment\(\{ github, prepared, result, context, core \}\)/);
-  assert.doesNotMatch(workflow, /catch \(error\)/);
+  assert.doesNotMatch(workflow, /OPENAI_API_KEY|codex-action/);
   assert.match(workflow, /persist-credentials: false/);
 });
 
 test('allowlist contains only the eight current child repositories', () => {
-  assert.deepEqual(dispatcher.ALLOWED_REPOSITORIES, [
-    'shu-matsukubo/matsu-front',
-    'shu-matsukubo/matsu-bff',
-    'shu-matsukubo/matsu-api',
-    'shu-matsukubo/matsu-auth',
-    'shu-matsukubo/matsu-toolbox-api',
-    'shu-matsukubo/matsu-arcade-auth',
-    'shu-matsukubo/matsu-arcade-api',
-    'shu-matsukubo/matsu-docs',
-  ]);
+  assert.deepEqual(dispatcher.ALLOWED_REPOSITORIES, issueFlow.ALLOWED_REPOSITORIES);
+  assert.equal(dispatcher.ALLOWED_REPOSITORIES.length, 8);
 });

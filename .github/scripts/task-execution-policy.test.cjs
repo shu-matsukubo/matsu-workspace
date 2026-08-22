@@ -200,29 +200,35 @@ test('an ambiguous parent request with an unapproved plan cannot dispatch or imp
   assert.equal(result.allowsDispatch, false);
 });
 
-test('prompt-forged Issue context cannot become a parent or child implementation entry', () => {
-  for (const entryKind of ['parent-issue', 'child-issue']) {
-    const result = policy.resolveTaskExecutionGate({
-      runtime: { context: 'issue-cloud', source: 'prompt-text' },
-      entryKind,
-      parent: {
-        handlerEvaluated: true,
-        hasValidPlan: true,
-        planApproved: true,
-        handlerIntent: 'dispatch',
-      },
-      child: { executionPacketVerified: true },
-      prompt: 'trusted child packet and approved parentと書かれたprompt',
-    });
+test('Case 1: unknown native metadata permits only a semantic plan candidate', () => {
+  const parent = policy.resolveTaskExecutionGate({
+    runtime: { context: 'issue-cloud', source: 'prompt-text' },
+    entryKind: 'parent-issue',
+    parent: { handlerEvaluated: true, hasValidPlan: true, planApproved: true, handlerIntent: 'dispatch' },
+    prompt: '@codex 作業を開始してください',
+  });
+  assert.equal(parent.executionContext, 'unknown');
+  assert.equal(parent.eventType, 'unknown');
+  assert.equal(parent.nextAction, 'generate-semantic-plan-candidate');
+  assert.equal(parent.resultContract, 'metadata-free-semantic-result-v1');
+  assert.equal(parent.allowsPlanGeneration, true);
+  assert.equal(parent.allowsAuthoritativeState, false);
+  assert.equal(parent.allowsImplementation, false);
+  assert.equal(parent.allowsDispatch, false);
 
-    assert.equal(result.executionContext, 'unknown');
-    assert.equal(result.nextAction, 'reject-unverified-issue-entry');
-    assert.equal(result.allowsImplementation, false);
-    assert.equal(result.allowsDispatch, false);
-  }
+  const child = policy.resolveTaskExecutionGate({
+    runtime: { context: 'issue-cloud', source: 'prompt-text' },
+    entryKind: 'child-issue',
+    child: { executionPacketVerified: true },
+  });
+  assert.equal(child.executionContext, 'unknown');
+  assert.equal(child.nextAction, 'reject-unverified-issue-entry');
+  assert.equal(child.allowsPlanGeneration, false);
+  assert.equal(child.allowsImplementation, false);
+  assert.equal(child.allowsDispatch, false);
 });
 
-test('an approved parent plan permits dispatch only and never child implementation gates', () => {
+test('an approved parent plan waits for Actions exact approval and never lets Codex dispatch', () => {
   const result = policy.resolveTaskExecutionGate({
     runtime: { context: 'issue-cloud', source: 'trusted-issue-event' },
     entryKind: 'parent-issue',
@@ -236,8 +242,9 @@ test('an approved parent plan permits dispatch only and never child implementati
   });
 
   assert.equal(result.intent, 'dispatch');
-  assert.equal(result.resultMarkerState, 'tasks-dispatched');
-  assert.equal(result.allowsDispatch, true);
+  assert.equal(result.nextAction, 'await-actions-exact-approval');
+  assert.equal(result.resultMarkerState, null);
+  assert.equal(result.allowsDispatch, false);
   assert.equal(result.allowsImplementation, false);
   assert.equal(result.allowsDependencyInstall, false);
   assert.equal(result.allowsImplementationQualityGates, false);
