@@ -71,7 +71,7 @@ Codex Connectorがsemantic result markerの後ろへ自動付与する既知の`
 - [x] candidateが同一でfooter URLだけ異なる場合、承認対象plan hashが一致し、不要なrevision差分を生じさせない。
 - [x] syntax check、Issue Flow・Dispatcher・execution policy・dependency・hash関連test、`git diff --check`が成功するか、未実施理由を記録する。
 - [x] Worker self review、独立Reviewer review、Main最終reviewを完了する。
-- [ ] GitHub Connectorでbranchを公開し、`main`向けdraft Pull Requestを作成する。
+- [x] GitHub Connectorでbranchを公開し、`main`向けdraft Pull Requestを作成する。
 
 ## 実施結果
 
@@ -81,6 +81,6 @@ Codex Connectorがsemantic result markerの後ろへ自動付与する既知の`
 - CI委譲: なし。既存Parent CIが今回実行したNode syntax、5 test file、`git diff --check`を覆うことを確認した。draft Pull Request公開後のCI結果はこのタスク内でポーリングしない。
 - documentation follow-up required: README、DEVELOPMENT、`docs`本文は対象外のため変更していない。`.agents/skills/handle-github-issue-event/references/issue-protocol.md`のsemantic result terminal grammarとplan hash説明、および補助CLIの位置付けをConnector footer対応へ揃える別documentation taskを検討する。
 - agent allocation・実行結果: Mainが責務と変更対象の強い結合を評価し、parser・hash・testをWorker 1人へまとめ、統合差分を独立Reviewer 1人が確認した後にMainが最終reviewする順次構成を選択した。Workerは実装、98 test、`git diff --check`、self reviewを完了した。MainがGitHub ConnectorでIssue #26実コメントを再取得し、footer行頭に半角スペース1文字があることを確認した。独立Reviewerも現案が実入力を拒否するP1を指摘し、Workerへ0/1 spaceだけ許可し2 space・tab・全角spaceを拒否する修正と回帰testを差し戻した。Workerの修正・再self review後、独立Reviewer再reviewとMain最終reviewはいずれもactionable findingなし。
-- commit: task定義 `390af31`、実装 `4fc40ce`
-- remote公開: GitHub Connectorでの公開待ち
-- Pull Request: 未作成
+- commit: task定義 `390af31`、実装 `4fc40ce`、completed記録 `580668b`
+- remote公開: GitHub Connectorで `codex/2026-08-23-accept-codex-connector-footer` を公開した。開始時と公開時のremote `main`は `047821ed4db2ecbdbc650a2bc953b21624763b2c`で一致した。初回公開remote commitは `2dc1cf9bec810477b3f3998b288b4d1d3aff4ae5`、local completed commitとremote commitのtree SHAは `6e53d86d3750cc032a96d47511af0b844f128328`で一致した。local git push、credential追加、mergeは行っていない。
+- Pull Request: draft [#27](https://github.com/shu-matsukubo/matsu-workspace/pull/27)（base: `main`、head: `codex/2026-08-23-accept-codex-connector-footer`、CI実行待ち）
