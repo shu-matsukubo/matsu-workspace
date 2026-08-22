@@ -24,6 +24,7 @@ const TASK_KEY_PATTERN = /^[A-Z][A-Z0-9_-]{0,31}$/;
 const CANDIDATE_OPEN = '<!-- codex-plan-candidate:v1';
 const CANDIDATE_CLOSE = '<!-- /codex-plan-candidate:v1 -->';
 const SEMANTIC_PATTERN = /^<!-- codex-semantic-result:v1 type=(plan|revise|question|error) -->$/;
+const CONNECTOR_FOOTER_PATTERN = /^ ?\[View task →\]\((https:\/\/chatgpt\.com\/s\/([A-Za-z0-9][A-Za-z0-9_-]{0,255}))\)$/;
 const STATE_PREFIX = '<!-- codex-issue-state:v1 ';
 const DISPATCH_PREFIX = '<!-- codex-actions-dispatch:v1 ';
 const APPROVAL_RESULT_PREFIX = '<!-- codex-approval-result:v1 ';
@@ -209,27 +210,59 @@ function validateCandidateTask(candidate) {
   return candidate;
 }
 
+function isValidConnectorFooter(footer) {
+  const match = CONNECTOR_FOOTER_PATTERN.exec(footer);
+  if (!match) return false;
+  try {
+    const url = new URL(match[1]);
+    return url.protocol === 'https:' && url.username === '' && url.password === ''
+      && url.hostname === 'chatgpt.com' && url.port === '' && url.pathname === `/s/${match[2]}`
+      && url.search === '' && url.hash === '';
+  } catch {
+    return false;
+  }
+}
+
 function terminalSemanticResultMarker(body) {
   const lines = normalizeText(body).replace(/\n+$/g, '').split('\n');
-  const match = SEMANTIC_PATTERN.exec(lines.at(-1) || '');
+  let markerIndex = lines.length - 1;
+  if (isValidConnectorFooter(lines.at(-1) || '')) {
+    if (lines.at(-2) !== '') return null;
+    markerIndex -= 2;
+  }
+  const match = SEMANTIC_PATTERN.exec(lines[markerIndex] || '');
   return match ? { type: match[1] } : null;
 }
 
-function semanticResultMarker(body) {
+function semanticResultEnvelope(body) {
   const normalized = normalizeText(body).replace(/\n+$/g, '');
   const marker = terminalSemanticResultMarker(normalized);
-  if (!marker) return null;
   const occurrences = normalized.match(/<!-- codex-semantic-result:v1 type=(?:plan|revise|question|error) -->/g) || [];
+  if (occurrences.length === 0) return null;
   if (occurrences.length !== 1) throw new Error('semantic result markerは末尾に1つだけ記載する必要があります。');
-  return marker;
+  if (!marker) throw new Error('semantic result marker後には既知のConnector footer以外を記載できません。');
+  const markerText = `<!-- codex-semantic-result:v1 type=${marker.type} -->`;
+  const markerIndex = normalized.indexOf(markerText);
+  if (markerIndex > 0 && normalized[markerIndex - 1] !== '\n') {
+    throw new Error('semantic result markerは独立した行に記載する必要があります。');
+  }
+  const suffix = normalized.slice(markerIndex + markerText.length);
+  if (suffix !== '' && (!suffix.startsWith('\n\n') || !isValidConnectorFooter(suffix.slice(2)))) {
+    throw new Error('semantic result marker後のConnector footerが不正です。');
+  }
+  return { type: marker.type, markerIndex,
+    protocolBody: normalized.slice(0, markerIndex + markerText.length) };
+}
+
+function semanticResultMarker(body) {
+  const envelope = semanticResultEnvelope(body);
+  return envelope ? { type: envelope.type } : null;
 }
 
 function parsePlanCandidates(body) {
-  let normalized = normalizeText(body).replace(/\n+$/g, '');
-  const marker = semanticResultMarker(normalized);
-  if (!marker || !['plan', 'revise'].includes(marker.type)) throw new Error('plan candidateのsemantic result markerが不正です。');
-  const markerText = `<!-- codex-semantic-result:v1 type=${marker.type} -->`;
-  normalized = normalized.slice(0, -markerText.length);
+  const envelope = semanticResultEnvelope(body);
+  if (!envelope || !['plan', 'revise'].includes(envelope.type)) throw new Error('plan candidateのsemantic result markerが不正です。');
+  let normalized = envelope.protocolBody.slice(0, envelope.markerIndex);
   if (!normalized.endsWith('\n\n')) throw new Error('candidate blockとsemantic result markerの境界が不正です。');
   normalized = normalized.slice(0, -2);
   if (!normalized.startsWith(`${CANDIDATE_OPEN}\n`)) throw new Error('plan resultはcandidate blockから開始する必要があります。');
@@ -267,20 +300,18 @@ function parsePlanCandidates(body) {
     if (keys.has(candidate.key)) throw new Error(`candidate task keyが重複しています: ${candidate.key}`);
     keys.add(candidate.key);
   }
-  return { type: marker.type, candidates };
+  return { type: envelope.type, candidates };
 }
 
 function parseSemanticResult(body) {
-  const marker = semanticResultMarker(body);
-  if (!marker) return null;
-  if (['plan', 'revise'].includes(marker.type)) return parsePlanCandidates(body);
-  const normalized = normalizeText(body).replace(/\n+$/g, '');
-  const markerText = `<!-- codex-semantic-result:v1 type=${marker.type} -->`;
-  const content = normalized.slice(0, -markerText.length);
+  const envelope = semanticResultEnvelope(body);
+  if (!envelope) return null;
+  if (['plan', 'revise'].includes(envelope.type)) return parsePlanCandidates(body);
+  const content = envelope.protocolBody.slice(0, envelope.markerIndex);
   if (/<!--\s*\/?codex-(?:plan-candidate|semantic-result|issue-state|actions-dispatch)\b/i.test(content)) {
     throw new Error('question/error result本文に予約markerは記載できません。');
   }
-  return { type: marker.type, candidates: [] };
+  return { type: envelope.type, candidates: [] };
 }
 
 function canonicalJson(value) {
@@ -292,7 +323,9 @@ function canonicalJson(value) {
 }
 
 function planHash(body) {
-  const normalized = normalizeText(body).split('\n').map((line) => line.replace(/[ \t]+$/g, ''))
+  const envelope = semanticResultEnvelope(body);
+  const protocolBody = envelope ? envelope.protocolBody : body;
+  const normalized = normalizeText(protocolBody).split('\n').map((line) => line.replace(/[ \t]+$/g, ''))
     .join('\n').replace(/^\n+|\n+$/g, '');
   return crypto.createHash('sha256').update(normalized, 'utf8').digest('hex');
 }
