@@ -1,6 +1,7 @@
 # GitHub Issue Flowのtrust boundaryをActionsへ移す
 
-- 状態: active
+- 状態: completed
+- 完了日: 2026-08-22
 - タスクキー: `T1`
 - 優先度: high
 - 対象リポジトリ: `shu-matsukubo/matsu-workspace`
@@ -77,27 +78,29 @@ GitHub Actionsを親Issue control-planeのtrust boundaryとし、native Codex ru
 
 ## 完了条件
 
-- [ ] native Codex runtimeにIssue番号、comment ID、author metadataがなくても初回plan候補を生成できる。
-- [ ] metadata不足状態からimplementation、approval確定、dispatch、authoritative revision/hash生成へ進めない。
-- [ ] Issue / Pull Request、owner、trusted bot、comment IDの真正性をActionsがGitHub eventと再取得stateから判定する。
-- [ ] revision、source / plan hash、processed owner comment、latest plan identityをActionsがauthoritative stateとして管理する。
-- [ ] Codex resultはtask key、title、repository、work、agent strategy、completion、dependencies、out-of-scope、verification、concerns等の意味内容に集中する。
-- [ ] 最新planへのrepository ownerのexact approvalだけを受理し、古いrevision、unknown user、unknown bot、改変済みplanを拒否する。
-- [ ] approval後にCodexがplanを再構築せず、Actionsが承認済み内容をDispatcherへ一対一でprojectionする。
-- [ ] 同一owner comment、revision、dispatch-idのrerunでchild Issueを重複作成しない。
-- [ ] allowlist、`CROSS_REPO_ISSUE_TOKEN`非出力、1 task = 1 child Issue、自動`@codex`禁止、人間確認gateを維持する。
-- [ ] 親Issueから直接implementationしないhard gateを維持する。
-- [ ] Issue #24相当、owner verification、Pull Request comment、approval、dispatch、rerun、reviseの回帰testを追加する。
-- [ ] plan、question、revise、approval、dispatch、error、次操作の人間向け出力を日本語で維持する。
-- [ ] Node syntax、Issue Flow、execution policy、Dispatcher、revision/hash、dependency、E2E回帰test、workflow YAML、skill validation、`git diff --check`が成功するか、未実施理由を記録する。
-- [ ] Worker self review、独立Reviewer review、Main最終reviewを完了する。
+- [x] native Codex runtimeにIssue番号、comment ID、author metadataがなくても初回plan候補を生成できる。
+- [x] metadata不足状態からimplementation、approval確定、dispatch、authoritative revision/hash生成へ進めない。
+- [x] Issue / Pull Request、owner、trusted bot、comment IDの真正性をActionsがGitHub eventと再取得stateから判定する。
+- [x] revision、source / plan hash、processed owner comment、latest plan identityをActionsがauthoritative stateとして管理する。
+- [x] Codex resultはtask key、title、repository、work、agent strategy、completion、dependencies、out-of-scope、verification、concerns等の意味内容に集中する。
+- [x] 最新planへのrepository ownerのexact approvalだけを受理し、古いrevision、unknown user、unknown bot、改変済みplanを拒否する。
+- [x] approval後にCodexがplanを再構築せず、Actionsが承認済み内容をDispatcherへ一対一でprojectionする。
+- [x] 同一owner comment、revision、dispatch-idのrerunでchild Issueを重複作成しない。
+- [x] allowlist、`CROSS_REPO_ISSUE_TOKEN`非出力、1 task = 1 child Issue、自動`@codex`禁止、人間確認gateを維持する。
+- [x] 親Issueから直接implementationしないhard gateを維持する。
+- [x] Issue #24相当、owner verification、Pull Request comment、approval、dispatch、rerun、reviseの回帰testを追加する。
+- [x] plan、question、revise、approval、dispatch、error、次操作の人間向け出力を日本語で維持する。
+- [x] Node syntax、Issue Flow、execution policy、Dispatcher、revision/hash、dependency、E2E回帰test、workflow YAML、skill validation、`git diff --check`が成功するか、未実施理由を記録する。
+- [x] Worker self review、独立Reviewer review、Main最終reviewを完了する。
 - [ ] commit後、GitHub Connectorでbranchを公開し、`main`向けdraft Pull Requestを作成する。
 
 ## 実施結果
 
-- 変更内容: 未実施
-- ローカル検証: 未実施
-- CI委譲: なし
-- documentation follow-up: README、DEVELOPMENT、`docs`は対象外。明示承認された`AGENTS.md`とIssue Flow skills / protocolだけを実装とともに更新予定
-- agent allocation・実行結果: 未実施
-- Pull Request: 未作成
+- 変更内容: Codex出力をmetadata-freeなstrict semantic result / candidate contractへ限定し、ActionsがGitHub eventと再取得stateからauthoritative revision、source / plan hash、processed owner comment、owner exact approvalを確定するようIssue Flowを更新した。candidateの全fieldを決定的な可視JSONへ投影し、hidden payloadとの完全一致、unsafe文字escape、terminal marker 1件のexact grammarを検証する。承認済みcandidateはActionsが一対一projectionし、authoritative stateを`approved`へ更新した後、`workflow_dispatch`でDispatcherを明示起動する。Dispatcherはinputsから親Issueとcommentsを再取得し、approved identity、Actions bot、owner exact approval、時系列、hash、schema、一対一projectionを再検証する。rerun、partial failure、malformed current dispatch、stale owner comment、label修復の冪等性を追加し、allowlist、token境界、1 task = 1 child Issue、人間確認gate、自動mention禁止を維持した。承認範囲内の`AGENTS.md`、2 skills、Issue protocolも同じ契約へ更新した。
+- ローカル検証: Node構文確認5/5成功。Issue Flow、Dispatcher、execution policy、source / plan hash、dependency解析のNode test 94/94成功（fail / skip / todo 0）。workflowの`actions: write`、明示`workflow_dispatch`、approved-only再検証、manual forged inputs拒否、token scope、Actions本文のliteral mention禁止をtestで確認した。`git diff --check`成功（WindowsのLF→CRLF警告のみ）。変更skill 2件のfrontmatter、placeholder、candidate contractを手動検証し2/2成功した。
+- 未実施検証・残るリスク: default branch反映後の実GitHub Actionsで、`workflow_dispatch`からcross-repository child Issue作成とpartial rerunまでを通すlive E2Eは未実施。workflow YAMLとskill自動validatorはCodex同梱PythonにPyYAMLがなく`ModuleNotFoundError: No module named 'yaml'`となったため未実施であり、dependency追加禁止に従ってinstallせず、Nodeのworkflow contract testと手動構造確認で補完した。
+- CI委譲: なし。既存Parent CIが同じNode構文、5 test file、`git diff --check`を覆うことを確認したが、remote公開前のためCI結果は未取得。
+- documentation follow-up required: READMEとDEVELOPMENT本文は承認範囲外のため変更していない。`README.md`のIssue起動・状態説明、および`DEVELOPMENT.md`のGitHub Issue駆動フロー、承認操作、workflow権限、result marker、実地試験を、exact `/codex approve`、Actions authoritative state、`actions: write`、`workflow_dispatch`、approved-only Dispatcher契約へ更新する別documentation taskが必要。`docs`本文への影響はない。
+- agent allocation・実行結果: Worker 1人がIssue Flow、Dispatcher、policy、tests、明示承認文書を実装してself reviewした。MainはGITHUB_TOKEN起点のIssue commentでDispatcher workflowを起動できない点とmalformed current dispatch時のlabel同期を指摘し、Workerが明示`workflow_dispatch`とmarker非依存failure identityへ修正した。独立Reviewer 1人はquestion / error案内、candidate可視内容との同一性、rerun label修復、authoritative state exact grammarの4点を指摘し、Workerが修正した。Worker再self review、独立Reviewer再review、Main最終reviewはいずれも最終actionable findingなし。
+- commit: task定義 `4d3c604`、実装 `1e92a1d`
+- Pull Request: GitHub Connectorでdraft作成待ち
